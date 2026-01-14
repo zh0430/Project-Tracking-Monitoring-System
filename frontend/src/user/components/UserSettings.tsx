@@ -1,0 +1,358 @@
+import { useState } from 'react';
+import { User } from '../App';
+import { Settings, User as UserIcon, Bell, AlertTriangle, Upload, X } from 'lucide-react';
+
+interface UserSettingsProps {
+  user: User;
+  onUpdateUser: (updates: Partial<User>) => void;
+  onDeleteAccount: () => void;
+}
+
+export function UserSettings({
+  user,
+  onUpdateUser,
+  onDeleteAccount,
+}: UserSettingsProps) {
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [profileData, setProfileData] = useState({
+    userId: user.userId,
+    fullName: user.fullName,
+    email: user.email,
+    phoneNumber: user.phoneNumber,
+    department: user.department,
+  });
+  const [preferences, setPreferences] = useState({
+    emailNotifications: user.emailNotifications,
+    taskReminders: user.taskReminders,
+  });
+  const [profilePicture, setProfilePicture] = useState(user.profilePicture);
+
+  const handleProfilePictureUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const imageUrl = reader.result as string;
+      setProfilePicture(imageUrl);
+      onUpdateUser({ profilePicture: imageUrl });
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleDeleteProfilePicture = () => {
+    setProfilePicture(undefined);
+    onUpdateUser({ profilePicture: undefined });
+  };
+
+  const handleSaveProfile = () => {
+    onUpdateUser(profileData);
+    setIsEditingProfile(false);
+  };
+
+  const handleCancelEdit = () => {
+    setProfileData({
+      userId: user.userId,
+      fullName: user.fullName,
+      email: user.email,
+      phoneNumber: user.phoneNumber,
+      department: user.department,
+    });
+    setIsEditingProfile(false);
+  };
+
+  const handlePreferenceChange = (key: keyof typeof preferences, value: boolean) => {
+    const newPreferences = { ...preferences, [key]: value };
+    setPreferences(newPreferences);
+    onUpdateUser(newPreferences);
+  };
+
+  const handleDeleteAccount = () => {
+    onDeleteAccount();
+    setShowDeleteConfirm(false);
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center gap-2 mb-6">
+        <Settings className="w-6 h-6 text-gray-700" />
+        <h2 className="text-gray-900">User Settings</h2>
+      </div>
+
+      {/* Profile Details Section */}
+      <div className="bg-white border border-gray-200 rounded-lg">
+        <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <UserIcon className="w-5 h-5 text-gray-700" />
+            <h3 className="text-gray-900">Profile Details</h3>
+          </div>
+          {!isEditingProfile && (
+            <button
+              onClick={() => setIsEditingProfile(true)}
+              className="px-4 py-2 bg-gray-800 text-white rounded hover:bg-gray-900 transition-colors"
+            >
+              Edit Profile
+            </button>
+          )}
+        </div>
+        <div className="p-6 space-y-6">
+          {/* Profile Picture */}
+          <div>
+            <label className="block text-gray-700 mb-3">Profile Picture</label>
+            <div className="flex items-center gap-4">
+              <div className="w-24 h-24 bg-gray-200 rounded-full flex items-center justify-center overflow-hidden">
+                {profilePicture ? (
+                  <img
+                    src={profilePicture}
+                    alt="Profile"
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <UserIcon className="w-12 h-12 text-gray-600" />
+                )}
+              </div>
+              {isEditingProfile && (
+                <div className="flex flex-col gap-2">
+                  <label className="flex items-center gap-2 px-4 py-2 bg-gray-800 text-white rounded hover:bg-gray-900 transition-colors cursor-pointer">
+                    <Upload className="w-4 h-4" />
+                    Upload Picture
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleProfilePictureUpload}
+                      className="hidden"
+                    />
+                  </label>
+                  {profilePicture && (
+                    <button
+                      onClick={handleDeleteProfilePicture}
+                      className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
+                    >
+                      <X className="w-4 h-4" />
+                      Remove Picture
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label className="block text-gray-700 mb-2">User ID</label>
+              {isEditingProfile ? (
+                <input
+                  type="text"
+                  value={profileData.userId}
+                  onChange={(e) =>
+                    setProfileData({ ...profileData, userId: e.target.value })
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-gray-400"
+                />
+              ) : (
+                <div className="text-gray-900">{user.userId}</div>
+              )}
+            </div>
+            <div>
+              <label className="block text-gray-700 mb-2">Full Name</label>
+              {isEditingProfile ? (
+                <input
+                  type="text"
+                  value={profileData.fullName}
+                  onChange={(e) =>
+                    setProfileData({ ...profileData, fullName: e.target.value })
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-gray-400"
+                />
+              ) : (
+                <div className="text-gray-900">{user.fullName}</div>
+              )}
+            </div>
+            <div>
+              <label className="block text-gray-700 mb-2">Email Address</label>
+              {isEditingProfile ? (
+                <input
+                  type="email"
+                  value={profileData.email}
+                  onChange={(e) =>
+                    setProfileData({ ...profileData, email: e.target.value })
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-gray-400"
+                />
+              ) : (
+                <div className="text-gray-900">{user.email}</div>
+              )}
+            </div>
+            <div>
+              <label className="block text-gray-700 mb-2">Phone Number</label>
+              {isEditingProfile ? (
+                <input
+                  type="tel"
+                  value={profileData.phoneNumber}
+                  onChange={(e) =>
+                    setProfileData({ ...profileData, phoneNumber: e.target.value })
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-gray-400"
+                />
+              ) : (
+                <div className="text-gray-900">{user.phoneNumber}</div>
+              )}
+            </div>
+            <div className="md:col-span-2">
+              <label className="block text-gray-700 mb-2">Department</label>
+              {isEditingProfile ? (
+                <input
+                  type="text"
+                  value={profileData.department}
+                  onChange={(e) =>
+                    setProfileData({ ...profileData, department: e.target.value })
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-gray-400"
+                />
+              ) : (
+                <div className="text-gray-900">{user.department}</div>
+              )}
+            </div>
+          </div>
+          {isEditingProfile && (
+            <div className="flex gap-3 pt-4">
+              <button
+                onClick={handleSaveProfile}
+                className="px-6 py-2 bg-gray-800 text-white rounded hover:bg-gray-900 transition-colors"
+              >
+                Save Changes
+              </button>
+              <button
+                onClick={handleCancelEdit}
+                className="px-6 py-2 bg-white border border-gray-300 text-gray-700 rounded hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* System Preferences Section */}
+      <div className="bg-white border border-gray-200 rounded-lg">
+        <div className="p-6 border-b border-gray-200 flex items-center gap-2">
+          <Bell className="w-5 h-5 text-gray-700" />
+          <h3 className="text-gray-900">System Preferences</h3>
+        </div>
+        <div className="p-6 space-y-6">
+          {/* Email Notifications */}
+          <div className="flex items-start justify-between">
+            <div className="flex-1">
+              <div className="text-gray-900 mb-1">Email Notifications</div>
+              <div className="text-gray-600 text-sm">
+                Receive email updates for task assignments and status changes
+              </div>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer ml-4">
+              <input
+                type="checkbox"
+                checked={preferences.emailNotifications}
+                onChange={(e) =>
+                  handlePreferenceChange('emailNotifications', e.target.checked)
+                }
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-gray-400 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gray-800"></div>
+            </label>
+          </div>
+
+          {/* Task Reminders */}
+          <div className="flex items-start justify-between">
+            <div className="flex-1">
+              <div className="text-gray-900 mb-1">Task Reminders</div>
+              <div className="text-gray-600 text-sm">
+                Get reminders for upcoming deadlines through notifications at the top of
+                the website
+              </div>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer ml-4">
+              <input
+                type="checkbox"
+                checked={preferences.taskReminders}
+                onChange={(e) =>
+                  handlePreferenceChange('taskReminders', e.target.checked)
+                }
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-gray-400 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gray-800"></div>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      {/* Delete Account Section */}
+      <div className="bg-white border border-red-300 rounded-lg">
+        <div className="p-6 border-b border-red-300 flex items-center gap-2">
+          <AlertTriangle className="w-5 h-5 text-red-600" />
+          <h3 className="text-gray-900">Danger Zone</h3>
+        </div>
+        <div className="p-6">
+          <div className="flex items-start justify-between">
+            <div className="flex-1">
+              <div className="text-gray-900 mb-1">Delete Account</div>
+              <div className="text-gray-600 text-sm">
+                Once you delete your account, there is no going back. Please be certain.
+              </div>
+            </div>
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors ml-4"
+            >
+              Delete Account
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Delete Account Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+            <div className="p-6 border-b border-gray-200">
+              <div className="flex items-center gap-3">
+                <div className="flex-shrink-0 w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                  <AlertTriangle className="w-5 h-5 text-red-600" />
+                </div>
+                <h3 className="text-gray-900">Confirm Account Deletion</h3>
+              </div>
+            </div>
+            <div className="p-6">
+              <p className="text-gray-700 mb-4">
+                Are you absolutely sure you want to delete your account?
+              </p>
+              <p className="text-gray-900 mb-2">This action will:</p>
+              <ul className="list-disc list-inside text-gray-700 space-y-1 mb-4">
+                <li>Permanently delete your profile</li>
+                <li>Remove all your tasks and data</li>
+                <li>Cannot be undone</li>
+              </ul>
+              <p className="text-red-600">
+                This action is irreversible.
+              </p>
+            </div>
+            <div className="flex gap-3 p-6 border-t border-gray-200 bg-gray-50">
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                className="flex-1 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteAccount}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
+              >
+                Yes, Delete My Account
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
