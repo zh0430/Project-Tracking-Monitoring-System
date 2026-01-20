@@ -52,6 +52,8 @@ export interface User {
   taskReminders: boolean;
   profilePicture?: string;
   role: string;
+  mustChangePassword?: boolean;
+  tempPassword?: string | null;
 }
 
 export default function UserApp() {
@@ -90,14 +92,23 @@ export default function UserApp() {
         return res.json();
       })
       .then(data => {
-        setUser(data);
-        // Update localStorage with fresh user data
-        localStorage.setItem("user", JSON.stringify(data));
+        const existingUser = JSON.parse(localStorage.getItem("user")!);
+
+        const mergedUser = {
+          ...existingUser,
+          ...data, // refresh server-truth fields
+        };
+
+        setUser(mergedUser);
+        localStorage.setItem("user", JSON.stringify(mergedUser));
       })
       .catch(error => {
-        console.error('Error fetching user:', error);
-        // If API fails, use stored user data as fallback
-        setUser(parsedUser);
+        console.error("Auth failed, logging out:", error);
+
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+
+        navigate("/", { replace: true });
       })
       .finally(() => {
         setLoading(false);
@@ -292,7 +303,13 @@ export default function UserApp() {
   const token = localStorage.getItem("token");
   const storedUser = localStorage.getItem("user");
   const userRole = storedUser ? JSON.parse(storedUser).role : null;
-  const isAuthenticated = !!token && userRole === "user" && user !== null;
+  
+  // Updated authentication check - user is NOT authenticated if they need to change password
+  const isAuthenticated =
+    !!token &&
+    userRole === "user" &&
+    user !== null &&
+    user.mustChangePassword !== true;
 
   if (!isAuthenticated) {
     return (
@@ -345,7 +362,7 @@ export default function UserApp() {
             <GanttChartTracking
               projects={projects}
               onUpdateProject={handleUpdateProject}
-              onDeleteProject={handleDeleteProject}
+              onDeleteAccount={handleDeleteProject}
             />
           }
         />

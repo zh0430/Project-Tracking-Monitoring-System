@@ -111,13 +111,6 @@ export function Login({ onLogin, onSignUp }: LoginProps) {
           phoneNumber,
           department,
         });
-
-        // Redirect based on role
-        if (user.role === "admin") {
-          window.location.href = "/admin/dashboard";
-        } else {
-          window.location.href = "/user/dashboard";
-        }
       } catch (err: any) {
         setError(
           err.response?.data?.message ||
@@ -162,13 +155,6 @@ export function Login({ onLogin, onSignUp }: LoginProps) {
 
         // Call parent login handler
         onLogin(email, password);
-
-        // Role-based redirect
-        if (user.role === "admin") {
-          window.location.href = "/admin/dashboard";
-        } else {
-          window.location.href = "/user/dashboard";
-        }
       } catch (err: any) {
         setError(
           err.response?.data?.message ||

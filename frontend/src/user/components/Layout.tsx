@@ -1,4 +1,4 @@
-import { User as UserIcon, LayoutDashboard, ListChecks, Settings, GanttChartSquare, LogOut } from 'lucide-react';
+import { User as UserIcon, LayoutDashboard, ListChecks, Settings, GanttChartSquare, LogOut, AlertTriangle } from 'lucide-react';
 import { User } from '../App';
 import { useState, useRef, useEffect } from 'react';
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
@@ -18,6 +18,9 @@ export function Layout({
   const menuRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Check if user must change password
+  const isForcedPasswordChange = user.mustChangePassword === true;
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -69,13 +72,14 @@ export function Layout({
               return (
                 <li key={item.path}>
                   <button
-  onClick={() => navigate(item.path)}
-  className={`w-full flex items-center gap-3 px-4 py-3 rounded transition-colors ${
-    isActive
-      ? 'bg-red-600 text-white'
-      : 'text-gray-700 hover:bg-gray-100'
-  }`}
->
+                    onClick={() => navigate(item.path)}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded transition-colors ${
+                      isActive
+                        ? 'bg-red-600 text-white'
+                        : 'text-gray-700 hover:bg-gray-100'
+                    }`}
+                    disabled={isForcedPasswordChange && item.path !== 'settings'}
+                  >
                     <Icon className="w-5 h-5" />
                     <span>{item.label}</span>
                   </button>
@@ -135,6 +139,12 @@ export function Layout({
                       <div className="flex-1">
                         <div className="text-gray-900">{user.fullName}</div>
                         <div className="text-gray-600 text-sm">{user.email}</div>
+                        {isForcedPasswordChange && (
+                          <div className="mt-1 flex items-center gap-1 text-yellow-600 text-xs">
+                            <AlertTriangle className="w-3 h-3" />
+                            <span>Password change required</span>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -149,6 +159,11 @@ export function Layout({
                     >
                       <Settings className="w-5 h-5" />
                       <span>User Settings</span>
+                      {isForcedPasswordChange && (
+                        <span className="ml-auto bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded-full">
+                          Required
+                        </span>
+                      )}
                     </button>
                     {onLogout && (
                       <button
@@ -168,6 +183,26 @@ export function Layout({
             </div>
           </div>
         </header>
+
+        {/* Forced Password Change Warning */}
+        {isForcedPasswordChange && (
+          <div className="bg-yellow-100 border border-yellow-300">
+            <div className="mx-8 py-3">
+              <div className="flex items-center gap-2 text-yellow-800">
+                <AlertTriangle className="w-5 h-5 flex-shrink-0" />
+                <div className="text-sm">
+                  You must change your password before accessing other system features.
+                  <button
+                    onClick={() => navigate('settings')}
+                    className="ml-2 font-medium underline hover:text-yellow-900"
+                  >
+                    Change password now
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Success Message */}
         {successMessage && (
