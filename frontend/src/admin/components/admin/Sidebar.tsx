@@ -30,8 +30,7 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
       icon: Users,
     },
     {
-      // ✅ MUST include employeeId
-      path: '/admin/summary/1',
+      path: '/admin/summary',
       label: 'Employee Summary',
       icon: FileText,
     },

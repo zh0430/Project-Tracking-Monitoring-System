@@ -110,15 +110,7 @@ exports.login = async (req, res) => {
     // Verify password
     const isMatch = await bcrypt.compare(password, user.password_hash);
     if (!isMatch) {
-      // Check if temp_password exists and matches
-      if (user.temp_password) {
-        const isTempMatch = await bcrypt.compare(password, user.temp_password);
-        if (!isTempMatch) {
-          return res.status(401).json({ message: "Invalid credentials" });
-        }
-      } else {
-        return res.status(401).json({ message: "Invalid credentials" });
-      }
+      return res.status(401).json({ message: "Invalid credentials" });
     }
 
     // Generate JWT token with token version

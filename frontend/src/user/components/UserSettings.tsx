@@ -153,11 +153,15 @@ export function UserSettings({
 
       if (isForcedPasswordChange) {
         // For forced password changes
-        setPasswordSuccess("Password updated. Please log in again.");
+        setPasswordSuccess("Password updated. You will be logged out shortly.");
         setIsPasswordChanged(true);
         
         // Clear password fields
-        setPasswordData({ currentPassword: "", newPassword: "", confirmPassword: "" });
+        setPasswordData({
+          currentPassword: "",
+          newPassword: "",
+          confirmPassword: "",
+        });
         
         // Logout and redirect after delay
         setTimeout(() => {
@@ -188,13 +192,6 @@ export function UserSettings({
         <Settings className="w-6 h-6 text-gray-700" />
         <h2 className="text-gray-900">User Settings</h2>
       </div>
-
-      {/* Global password success message */}
-      {passwordSuccess && (
-        <div className="bg-green-50 border border-green-300 rounded-lg p-4">
-          <p className="text-green-700 font-medium">{passwordSuccess}</p>
-        </div>
-      )}
 
       {/* Force Password Change Banner */}
       {isForcedPasswordChange && !isPasswordChanged && (
@@ -472,11 +469,21 @@ export function UserSettings({
                   </div>
                 )}
 
+                {passwordSuccess && (
+                  <div className="p-3 bg-green-50 border border-green-200 rounded">
+                    <p className="text-green-700 text-sm font-medium">
+                      {passwordSuccess}
+                    </p>
+                  </div>
+                )}
+
                 <button
                   onClick={handleChangePassword}
                   disabled={isWeakPassword}
                   className={`px-6 py-2 rounded text-white transition-colors ${
-                    isWeakPassword ? "bg-gray-400 cursor-not-allowed" : "bg-gray-800 hover:bg-gray-900"
+                    isWeakPassword
+                      ? "bg-gray-400 cursor-not-allowed"
+                      : "bg-gray-800 hover:bg-gray-900"
                   }`}
                 >
                   Update Password

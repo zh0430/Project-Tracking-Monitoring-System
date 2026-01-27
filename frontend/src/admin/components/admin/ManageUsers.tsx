@@ -27,6 +27,8 @@ export function ManageUsers({
 }: ManageUsersProps) {
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
+  const [tempPassword, setTempPassword] = useState<string | null>(null);
+  const [resetUserId, setResetUserId] = useState<string | null>(null);
 
   const handleAssignWork = (employeeId: string) => {
     setSelectedEmployeeId(employeeId);
@@ -41,6 +43,37 @@ export function ManageUsers({
 
   const handleExportAll = async () => {
     await exportAllTasksToExcel(employees, tasks, statuses, priorities);
+  };
+
+  const handleResetPassword = async (userId: string) => {
+    if (!window.confirm("Reset password for this user?")) return;
+
+    try {
+      const token = localStorage.getItem("token");
+
+      const res = await fetch(
+        `http://localhost:5000/api/admin/users/${userId}/reset-password`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(data.message || "Failed to reset password");
+        return;
+      }
+
+      setTempPassword(data.temporaryPassword);
+      setResetUserId(userId);
+    } catch (err) {
+      console.error(err);
+      alert("Server error while resetting password");
+    }
   };
 
   return (
@@ -58,6 +91,27 @@ export function ManageUsers({
           Export All Projects
         </button>
       </div>
+
+      {tempPassword && (
+        <div className="bg-yellow-50 border border-yellow-300 rounded-lg p-4">
+          <p className="text-yellow-800 font-medium">
+            Temporary Password Generated
+          </p>
+          <p className="mt-1 font-mono text-lg">{tempPassword}</p>
+          <p className="text-sm text-gray-600 mt-1">
+            Share this securely with the user. This password will not be shown again.
+          </p>
+          <button
+            onClick={() => {
+              setTempPassword(null);
+              setResetUserId(null);
+            }}
+            className="mt-2 text-sm text-red-600 hover:underline"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
 
       <div className="bg-white rounded-lg border border-gray-300 overflow-hidden">
         <table className="w-full">
@@ -96,7 +150,7 @@ export function ManageUsers({
                     </span>
                   </td>
                   <td className="px-6 py-4 text-gray-700">{employeeTasks.length}</td>
-                  <td className="px-6 py-4">
+                  <td className="px-6 py-4 flex gap-2">
                     <button
                       onClick={() => handleAssignWork(employee.userID)}
                       className="p-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
@@ -104,6 +158,16 @@ export function ManageUsers({
                     >
                       <Plus className="w-4 h-4" />
                     </button>
+
+                    {employee.userID !== adminId && (
+                      <button
+                        onClick={() => handleResetPassword(employee.userID)}
+                        className="px-3 py-1 bg-gray-800 text-white rounded hover:bg-gray-900 text-sm"
+                        title="Reset Password"
+                      >
+                        Reset
+                      </button>
+                    )}
                   </td>
                 </tr>
               );

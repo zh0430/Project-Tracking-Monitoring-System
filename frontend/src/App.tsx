@@ -2,6 +2,7 @@ import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import AdminApp from "./admin/AdminApp";
 import UserApp from "./user/UserApp";
 import { Login } from "./user/components/Login";
+import { ForgotPasswordChange } from "./user/components/ForgotPasswordChange";
 
 function App() {
   const navigate = useNavigate();
@@ -40,6 +41,7 @@ function App() {
       />
       <Route path="/user/*" element={<UserApp />} />
       <Route path="/admin/*" element={<AdminApp />} />
+      <Route path="/forgot-password-change" element={<ForgotPasswordChange />} />
       <Route path="*" element={<Navigate to="/" />} />
     </Routes>
   );

@@ -38,6 +38,12 @@ export function Login({ onLogin, onSignUp }: LoginProps) {
     setShowConfirmPassword(false);
   };
 
+  const handleForgotPassword = () => {
+    alert(
+      "For security reasons, password reset is handled by the system administrator. Please contact IT support."
+    );
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -149,6 +155,14 @@ export function Login({ onLogin, onSignUp }: LoginProps) {
 
         const { token, user } = response.data;
 
+        // Check if user must change password
+        if (user.mustChangePassword) {
+          localStorage.setItem("token", token);
+          localStorage.setItem("user", JSON.stringify(user));
+          window.location.href = "/forgot-password-change";
+          return;
+        }
+
         // Save auth data
         localStorage.setItem("token", token);
         localStorage.setItem("user", JSON.stringify(user));
@@ -237,7 +251,7 @@ export function Login({ onLogin, onSignUp }: LoginProps) {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="Enter your email"
                   className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                  disabled={isLoading}
+                    disabled={isLoading}
                 />
               </div>
             </div>
@@ -368,6 +382,7 @@ export function Login({ onLogin, onSignUp }: LoginProps) {
               </label>
               <button
                 type="button"
+                onClick={handleForgotPassword}
                 className="text-red-600 hover:text-red-700 text-sm transition-colors"
                 disabled={isLoading}
               >

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Task, Employee, Status, Priority, Role, TaskDocument } from '../../App';
 import { Calendar, Clock, Filter, Download, Trash2, Eye, Upload, FileText, X } from 'lucide-react';
@@ -40,16 +40,16 @@ export function EmployeeSummary({
   const [selectedTaskDetails, setSelectedTaskDetails] = useState<Task | null>(null);
   const [selectedTaskForGantt, setSelectedTaskForGantt] = useState<Task | null>(null);
 
+  useEffect(() => {
+    if (!employeeId && employees.length > 0) {
+      navigate(`/admin/summary/${employees[0].userID}`, { replace: true });
+    }
+  }, [employeeId, employees, navigate]);
+
   // Find selected employee based on URL parameter, default to first employee if not found
   const selectedEmployee = employeeId 
     ? employees.find(e => e.userID === employeeId)
     : employees[0];
-
-  // If no employee found and we have employees, navigate to first employee
-  if (!selectedEmployee && employees.length > 0) {
-    navigate(`/employee-summary/${employees[0].userID}`, { replace: true });
-    return null;
-  }
 
   if (!selectedEmployee) return null;
 
@@ -120,7 +120,7 @@ export function EmployeeSummary({
   };
 
   const handleEmployeeChange = (newEmployeeId: string) => {
-    navigate(`/employee-summary/${newEmployeeId}`);
+    navigate(`/admin/summary/${newEmployeeId}`);
   };
 
   return (
@@ -236,103 +236,114 @@ export function EmployeeSummary({
 
       {/* Active Tasks - Kanban Board */}
       {viewMode === 'active' && (
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          {/* To Do Column */}
-          <div>
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-3 h-3 rounded-full bg-gray-400"></div>
-              <h3 className="text-gray-900">To Do</h3>
-              <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-sm">
-                {toDoTasks.length}
-              </span>
+        <>
+          {filteredTasks.length === 0 ? (
+            <div className="bg-white border border-gray-300 rounded-lg p-10 text-center text-gray-500">
+              <p className="text-lg font-medium mb-2">No tasks assigned</p>
+              <p className="text-sm">
+                This employee currently has no tasks.
+              </p>
             </div>
-            <div className="space-y-3">
-              {toDoTasks.map(task => (
-                <TaskCard
-                  key={task.taskID}
-                  task={task}
-                  priorities={priorities}
-                  statuses={statuses}
-                  employees={employees}
-                  onApproveUpdate={onApproveUpdate}
-                  onDelete={onDeleteTask}
-                />
-              ))}
-            </div>
-          </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+              {/* To Do Column */}
+              <div>
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="w-3 h-3 rounded-full bg-gray-400"></div>
+                  <h3 className="text-gray-900">To Do</h3>
+                  <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-sm">
+                    {toDoTasks.length}
+                  </span>
+                </div>
+                <div className="space-y-3">
+                  {toDoTasks.map(task => (
+                    <TaskCard
+                      key={task.taskID}
+                      task={task}
+                      priorities={priorities}
+                      statuses={statuses}
+                      employees={employees}
+                      onApproveUpdate={onApproveUpdate}
+                      onDelete={onDeleteTask}
+                    />
+                  ))}
+                </div>
+              </div>
 
-          {/* In Progress Column */}
-          <div>
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-3 h-3 rounded-full bg-gray-600"></div>
-              <h3 className="text-gray-900">In Progress</h3>
-              <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-sm">
-                {inProgressTasks.length}
-              </span>
-            </div>
-            <div className="space-y-3">
-              {inProgressTasks.map(task => (
-                <TaskCard
-                  key={task.taskID}
-                  task={task}
-                  priorities={priorities}
-                  statuses={statuses}
-                  employees={employees}
-                  onApproveUpdate={onApproveUpdate}
-                  onDelete={onDeleteTask}
-                />
-              ))}
-            </div>
-          </div>
+              {/* In Progress Column */}
+              <div>
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="w-3 h-3 rounded-full bg-gray-600"></div>
+                  <h3 className="text-gray-900">In Progress</h3>
+                  <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-sm">
+                    {inProgressTasks.length}
+                  </span>
+                </div>
+                <div className="space-y-3">
+                  {inProgressTasks.map(task => (
+                    <TaskCard
+                      key={task.taskID}
+                      task={task}
+                      priorities={priorities}
+                      statuses={statuses}
+                      employees={employees}
+                      onApproveUpdate={onApproveUpdate}
+                      onDelete={onDeleteTask}
+                    />
+                  ))}
+                </div>
+              </div>
 
-          {/* Revision Required Column */}
-          <div>
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-3 h-3 rounded-full bg-red-600"></div>
-              <h3 className="text-gray-900">Revision Required</h3>
-              <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-sm">
-                {revisionRequiredTasks.length}
-              </span>
-            </div>
-            <div className="space-y-3">
-              {revisionRequiredTasks.map(task => (
-                <TaskCard
-                  key={task.taskID}
-                  task={task}
-                  priorities={priorities}
-                  statuses={statuses}
-                  employees={employees}
-                  onApproveUpdate={onApproveUpdate}
-                  onDelete={onDeleteTask}
-                />
-              ))}
-            </div>
-          </div>
+              {/* Revision Required Column */}
+              <div>
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="w-3 h-3 rounded-full bg-red-600"></div>
+                  <h3 className="text-gray-900">Revision Required</h3>
+                  <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-sm">
+                    {revisionRequiredTasks.length}
+                  </span>
+                </div>
+                <div className="space-y-3">
+                  {revisionRequiredTasks.map(task => (
+                    <TaskCard
+                      key={task.taskID}
+                      task={task}
+                      priorities={priorities}
+                      statuses={statuses}
+                      employees={employees}
+                      onApproveUpdate={onApproveUpdate}
+                      onDelete={onDeleteTask}
+                    />
+                  ))}
+                </div>
+              </div>
 
-          {/* Completed Column */}
-          <div>
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-3 h-3 rounded-full bg-gray-800"></div>
-              <h3 className="text-gray-900">Completed</h3>
-              <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-sm">
-                {completedTasks.length}
-              </span>
+              {/* Completed Column */}
+              <div>
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="w-3 h-3 rounded-full bg-gray-800"></div>
+                  <h3 className="text-gray-900">Completed</h3>
+                  <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-sm">
+                    {completedTasks.length}
+                  </span>
+                </div>
+                <div className="space-y-3">
+                  {completedTasks.map(task => (
+                    <TaskCard
+                      key={task.taskID}
+                      task={task}
+                      priorities={priorities}
+                      statuses={statuses}
+                      employees={employees}
+                      onApproveUpdate={onApproveUpdate}
+                      onDelete={onDeleteTask}
+                    />
+                  ))}
+                </div>
+              </div>
             </div>
-            <div className="space-y-3">
-              {completedTasks.map(task => (
-                <TaskCard
-                  key={task.taskID}
-                  task={task}
-                  priorities={priorities}
-                  statuses={statuses}
-                  employees={employees}
-                  onApproveUpdate={onApproveUpdate}
-                  onDelete={onDeleteTask}
-                />
-              ))}
-            </div>
-          </div>
-        </div>
+          )}
+        </>
       )}
 
       {/* Historical Workload - List View */}

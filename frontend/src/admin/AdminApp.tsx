@@ -483,6 +483,23 @@ export default function AdminApp() {
             />
 
             <Route
+              path="summary"
+              element={
+                <EmployeeSummary
+                  employees={employees}
+                  tasks={tasks}
+                  statuses={statuses}
+                  priorities={priorities}
+                  roles={roles}
+                  onApproveUpdate={handleApproveUpdate}
+                  onDeleteTask={handleDeleteTask}
+                  onUpdateTask={handleUpdateTask}
+                  currentUserId={admin.adminID}
+                />
+              }
+            />
+
+            <Route
               path="summary/:employeeId"
               element={
                 <EmployeeSummary
