@@ -30,6 +30,15 @@ export function ManageUsers({
   const [tempPassword, setTempPassword] = useState<string | null>(null);
   const [resetUserId, setResetUserId] = useState<string | null>(null);
 
+  // Sort employees by User ID (extract numeric part)
+  const sortedEmployees = [...employees].sort((a, b) => {
+    // Extract numeric part: USR-000002 -> 2
+    const numA = Number(a.userID.replace(/\D/g, ''));
+    const numB = Number(b.userID.replace(/\D/g, ''));
+
+    return numA - numB; // ascending
+  });
+
   const handleAssignWork = (employeeId: string) => {
     setSelectedEmployeeId(employeeId);
     setShowAssignModal(true);
@@ -126,7 +135,7 @@ export function ManageUsers({
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-300">
-            {employees.map(employee => {
+            {sortedEmployees.map(employee => {
               const employeeTasks = tasks.filter(t => {
                 if (Array.isArray(t.assignedToUserID)) {
                   return t.assignedToUserID.includes(employee.userID);

@@ -56,7 +56,59 @@ export interface User {
   tempPassword?: string | null;
 }
 
+// Wrapper components for direct routing
+const ProjectSubmissionFormWrapper = () => {
+  const navigate = useNavigate();
+  
+  const handleSubmit = (projectData: any) => {
+    const token = localStorage.getItem("token");
+    
+    fetch("http://localhost:5000/api/projects", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(projectData),
+    })
+      .then(res => {
+        if (res.ok) {
+          navigate('/user/projects');
+        }
+      })
+      .catch(console.error);
+  };
+
+  return <ProjectSubmissionForm onSubmit={handleSubmit} onCancel={() => navigate('/user/projects')} />;
+};
+
+const HistoricalProjectWrapper = () => {
+  const [projects, setProjects] = useState<Project[]>([]);
+  const token = localStorage.getItem("token");
+  
+  useEffect(() => {
+    if (!token) return;
+    
+    fetch("http://localhost:5000/api/projects", {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
+      .then(res => res.ok ? res.json() : [])
+      .then(setProjects)
+      .catch(() => setProjects([]));
+  }, [token]);
+
+  return <HistoricalProjectView projects={projects} />;
+};
+
+// Main UserApp component
 export default function UserApp() {
+  return <MainUserApp />;
+}
+
+// Original UserApp functionality (now as MainUserApp component)
+function MainUserApp() {
   const navigate = useNavigate();
   const [user, setUser] = useState<User | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -333,7 +385,16 @@ export default function UserApp() {
           />
         }
       >
-        <Route path="dashboard" element={<GlobalDashboard projects={projects} user={user} />} />
+        <Route
+          index
+          element={<Navigate to="dashboard" replace />}
+        />
+
+        <Route
+          path="dashboard"
+          element={<GlobalDashboard projects={projects} user={user} />}
+        />
+
         <Route
           path="projects"
           element={
@@ -341,11 +402,22 @@ export default function UserApp() {
               projects={projects}
               onUpdateProject={handleUpdateProject}
               onDeleteProject={handleDeleteProject}
+              onNavigateToNewProject={() => navigate('/user/projects/new')}
+              onNavigateToHistorical={() => navigate('/user/projects/history')}
             />
           }
         />
-        <Route path="projects/new" element={<ProjectSubmissionForm onSubmit={handleCreateProject} />} />
-        <Route path="projects/history" element={<HistoricalProjectView projects={projects} />} />
+
+        <Route
+          path="projects/new"
+          element={<ProjectSubmissionFormWrapper />}
+        />
+
+        <Route
+          path="projects/history"
+          element={<HistoricalProjectWrapper />}
+        />
+
         <Route
           path="settings"
           element={
@@ -356,6 +428,7 @@ export default function UserApp() {
             />
           }
         />
+
         <Route
           path="gantt"
           element={
@@ -366,6 +439,7 @@ export default function UserApp() {
             />
           }
         />
+
         <Route path="*" element={<Navigate to="dashboard" replace />} />
       </Route>
     </Routes>

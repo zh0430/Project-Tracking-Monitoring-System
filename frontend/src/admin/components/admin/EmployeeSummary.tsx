@@ -41,7 +41,15 @@ export function EmployeeSummary({
   const [selectedTaskForGantt, setSelectedTaskForGantt] = useState<Task | null>(null);
 
   useEffect(() => {
-    if (!employeeId && employees.length > 0) {
+    if (employees.length === 0) return;
+
+    if (!employeeId) {
+      navigate(`/admin/summary/${employees[0].userID}`, { replace: true });
+      return;
+    }
+
+    const exists = employees.some(e => e.userID === employeeId);
+    if (!exists) {
       navigate(`/admin/summary/${employees[0].userID}`, { replace: true });
     }
   }, [employeeId, employees, navigate]);
@@ -51,7 +59,21 @@ export function EmployeeSummary({
     ? employees.find(e => e.userID === employeeId)
     : employees[0];
 
-  if (!selectedEmployee) return null;
+  if (employees.length === 0) {
+    return (
+      <div className="bg-white p-6 rounded-lg border border-gray-300">
+        Loading employee summary...
+      </div>
+    );
+  }
+
+  if (!selectedEmployee) {
+    return (
+      <div className="bg-white p-6 rounded-lg border border-gray-300">
+        Employee not found.
+      </div>
+    );
+  }
 
   const employeeTasks = tasks.filter(t => {
     if (Array.isArray(t.assignedToUserID)) {

@@ -36,22 +36,22 @@ export function Layout({
 
   const menuItems = [
     {
-      path: 'dashboard',
+      path: '/user/dashboard',
       label: 'Global Dashboard',
       icon: LayoutDashboard,
     },
     {
-      path: 'projects',
+      path: '/user/projects',
       label: 'Manage Projects',
       icon: ListChecks,
     },
     {
-      path: 'gantt',
+      path: '/user/gantt',
       label: 'Gantt Chart Tracking',
       icon: GanttChartSquare,
     },
     {
-      path: 'settings',
+      path: '/user/settings',
       label: 'User Settings',
       icon: Settings,
     },
@@ -68,7 +68,8 @@ export function Layout({
           <ul className="space-y-2">
             {menuItems.map((item) => {
               const Icon = item.icon;
-              const isActive = location.pathname.endsWith(item.path);
+              const isActive = location.pathname === item.path || 
+                               location.pathname.startsWith(item.path + '/');
               return (
                 <li key={item.path}>
                   <button
@@ -78,7 +79,7 @@ export function Layout({
                         ? 'bg-red-600 text-white'
                         : 'text-gray-700 hover:bg-gray-100'
                     }`}
-                    disabled={isForcedPasswordChange && item.path !== 'settings'}
+                    disabled={isForcedPasswordChange && item.path !== '/user/settings'}
                   >
                     <Icon className="w-5 h-5" />
                     <span>{item.label}</span>
@@ -153,7 +154,7 @@ export function Layout({
                     <button
                       onClick={() => {
                         setShowUserMenu(false);
-                        navigate('settings');
+                        navigate('/user/settings');
                       }}
                       className="w-full flex items-center gap-3 px-4 py-2 text-gray-700 hover:bg-gray-100 rounded transition-colors text-left"
                     >
@@ -193,7 +194,7 @@ export function Layout({
                 <div className="text-sm">
                   You must change your password before accessing other system features.
                   <button
-                    onClick={() => navigate('settings')}
+                    onClick={() => navigate('/user/settings')}
                     className="ml-2 font-medium underline hover:text-yellow-900"
                   >
                     Change password now

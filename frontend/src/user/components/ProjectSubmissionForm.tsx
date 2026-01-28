@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Project, TaskDocument, ProjectTimeline } from '../App';
-import { ArrowLeft, Upload, FileText, Trash2, Download, Plus } from 'lucide-react';
+import { ArrowLeft, Trash2, Plus } from 'lucide-react';
 
 interface ProjectSubmissionFormProps {
   onSubmit: (projectData: Omit<Project, 'id' | 'projectId' | 'status' | 'createdAt'>) => void;
@@ -156,7 +156,7 @@ export function ProjectSubmissionForm({ onSubmit, onCancel }: ProjectSubmissionF
         className="flex items-center gap-2 mb-6 text-gray-700 hover:text-gray-900 transition-colors"
       >
         <ArrowLeft className="w-4 h-4" />
-        Back to Dashboard
+        Back to Projects
       </button>
 
       <div className="bg-white border border-gray-200 rounded-lg p-8 max-w-3xl">

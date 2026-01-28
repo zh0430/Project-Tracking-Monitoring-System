@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Task, Employee, Status, Priority, Role } from '../../App';
 import { Users, ClipboardList, CheckCircle2, AlertCircle } from 'lucide-react';
 import { TaskDistributionChart } from './TaskDistributionChart';
@@ -12,6 +13,8 @@ interface GlobalDashboardProps {
   onViewEmployee: (employeeId: string) => void;
 }
 
+type SortOption = 'NAME_ASC' | 'NAME_DESC' | 'WORKLOAD';
+
 export function GlobalDashboard({
   tasks,
   employees,
@@ -20,6 +23,43 @@ export function GlobalDashboard({
   roles,
   onViewEmployee,
 }: GlobalDashboardProps) {
+  const [sortOption, setSortOption] = useState<SortOption>('NAME_ASC');
+
+  // Helper function to calculate active task count for an employee
+  const getActiveCount = (employeeId: string) => {
+    const employeeTasks = tasks.filter(t => {
+      if (Array.isArray(t.assignedToUserID)) {
+        return t.assignedToUserID.includes(employeeId);
+      }
+      return t.assignedToUserID === employeeId;
+    });
+
+    const completed = employeeTasks.filter(t => {
+      const status = statuses.find(s => s.statusID === t.statusID);
+      return status?.statusName === 'Completed';
+    }).length;
+
+    return employeeTasks.length - completed;
+  };
+
+  // Sort employees based on selected sort option
+  const sortedEmployees = [...employees].sort((a, b) => {
+    if (sortOption === 'NAME_ASC') {
+      return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+    }
+
+    if (sortOption === 'NAME_DESC') {
+      return b.name.localeCompare(a.name, undefined, { sensitivity: 'base' });
+    }
+
+    if (sortOption === 'WORKLOAD') {
+      return getActiveCount(b.userID) - getActiveCount(a.userID);
+    }
+
+    return 0;
+  });
+
+  // Calculate metrics
   const totalTasks = tasks.length;
   const completedTasks = tasks.filter(t => {
     const status = statuses.find(s => s.statusID === t.statusID);
@@ -90,14 +130,54 @@ export function GlobalDashboard({
         </div>
       </div>
 
-      {/* Employees Overview - Moved to Top */}
+      {/* Employees Overview */}
       <div className="bg-white rounded-lg border border-gray-300">
-        <div className="p-6 border-b border-gray-300">
-          <h3 className="text-gray-900">Employees Overview</h3>
-          <p className="text-gray-600 text-sm mt-1">Click to view detailed project dashboard</p>
+        <div className="p-6 border-b border-gray-300 flex items-center justify-between">
+          <div>
+            <h3 className="text-gray-900">Employees Overview</h3>
+            <p className="text-gray-600 text-sm mt-1">
+              Click to view detailed project dashboard
+            </p>
+          </div>
+
+          <div className="flex gap-2">
+            <button
+              onClick={() => setSortOption('NAME_ASC')}
+              className={`px-3 py-1 rounded border text-sm ${
+                sortOption === 'NAME_ASC'
+                  ? 'bg-gray-900 text-white'
+                  : 'bg-white text-gray-700'
+              }`}
+            >
+              Name A–Z
+            </button>
+
+            <button
+              onClick={() => setSortOption('NAME_DESC')}
+              className={`px-3 py-1 rounded border text-sm ${
+                sortOption === 'NAME_DESC'
+                  ? 'bg-gray-900 text-white'
+                  : 'bg-white text-gray-700'
+              }`}
+            >
+              Name Z–A
+            </button>
+
+            <button
+              onClick={() => setSortOption('WORKLOAD')}
+              className={`px-3 py-1 rounded border text-sm ${
+                sortOption === 'WORKLOAD'
+                  ? 'bg-gray-900 text-white'
+                  : 'bg-white text-gray-700'
+              }`}
+            >
+              Workload
+            </button>
+          </div>
         </div>
+
         <div className="divide-y divide-gray-300">
-          {employees.map(employee => {
+          {sortedEmployees.map(employee => {
             const role = roles.find(r => r.roleID === employee.roleID);
             const employeeTasks = tasks.filter(t => {
               if (Array.isArray(t.assignedToUserID)) {

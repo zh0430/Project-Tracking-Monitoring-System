@@ -13,10 +13,10 @@ router.get(
   async (req, res) => {
     try {
       const result = await pool.query(
-        `SELECT u.user_id, u.name, u.email 
+        `SELECT u.public_user_id, u.name, u.email 
          FROM users u 
          JOIN roles r ON u.role_id = r.role_id 
-         WHERE u.user_id = $1 
+         WHERE u.user_id = $1
          AND r.role_name = 'admin'`,
         [req.user.userId]
       );
@@ -30,7 +30,7 @@ router.get(
       }
 
       res.json({
-        adminID: admin.user_id,
+        adminID: admin.public_user_id,
         name: admin.name,
         email: admin.email,
       });
@@ -52,7 +52,7 @@ router.get(
     try {
       const result = await pool.query(`
         SELECT 
-          u.user_id AS "userID",
+          u.public_user_id AS "userID",
           u.role_id AS "roleID",
           u.name,
           u.email

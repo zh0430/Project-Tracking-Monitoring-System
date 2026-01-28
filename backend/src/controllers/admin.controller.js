@@ -2,7 +2,7 @@ const pool = require("../config/db");
 const bcrypt = require("bcrypt");
 
 exports.resetUserPassword = async (req, res) => {
-  const userId = req.params.id;
+  const publicUserId = req.params.id;
 
   try {
     // 1. Generate temporary password
@@ -11,17 +11,17 @@ exports.resetUserPassword = async (req, res) => {
     // 2. Hash password
     const hashedPassword = await bcrypt.hash(tempPassword, 10);
 
-    // 3. Update user
+    // 3. Update user using public_user_id
     const result = await pool.query(
       `
       UPDATE users
       SET 
         password_hash = $1,
         must_change_password = true
-      WHERE user_id = $2
-      RETURNING user_id
+      WHERE public_user_id = $2
+      RETURNING public_user_id
       `,
-      [hashedPassword, userId]
+      [hashedPassword, publicUserId]
     );
 
     if (result.rowCount === 0) {
