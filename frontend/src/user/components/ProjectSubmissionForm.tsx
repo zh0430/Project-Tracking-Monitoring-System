@@ -149,6 +149,19 @@ export function ProjectSubmissionForm({ onSubmit, onCancel }: ProjectSubmissionF
     }
   };
 
+  // Helper function to format date for display
+  const formatDateTimeForDisplay = (datetimeString: string) => {
+    if (!datetimeString) return '';
+    const date = new Date(datetimeString);
+    return date.toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
   return (
     <div>
       <button
@@ -234,7 +247,7 @@ export function ProjectSubmissionForm({ onSubmit, onCancel }: ProjectSubmissionF
                 Due Date
               </label>
               <input
-                type="date"
+                type="datetime-local"
                 id="dueDate"
                 value={formData.dueDate}
                 onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
@@ -292,7 +305,7 @@ export function ProjectSubmissionForm({ onSubmit, onCancel }: ProjectSubmissionF
                     <div>
                       <label className="block text-gray-700 mb-2">Start Date</label>
                       <input
-                        type="date"
+                        type="datetime-local"
                         value={newTimeline.startDate}
                         onChange={(e) =>
                           setNewTimeline({ ...newTimeline, startDate: e.target.value })
@@ -303,7 +316,7 @@ export function ProjectSubmissionForm({ onSubmit, onCancel }: ProjectSubmissionF
                     <div>
                       <label className="block text-gray-700 mb-2">End Date</label>
                       <input
-                        type="date"
+                        type="datetime-local"
                         value={newTimeline.endDate}
                         onChange={(e) =>
                           setNewTimeline({ ...newTimeline, endDate: e.target.value })
@@ -372,20 +385,24 @@ export function ProjectSubmissionForm({ onSubmit, onCancel }: ProjectSubmissionF
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           <div className="text-gray-900 mb-2">{timeline.title}</div>
-                          <div className="grid grid-cols-3 gap-4 text-sm">
+                          <div className="grid grid-cols-2 gap-4 text-sm">
                             <div>
                               <span className="text-gray-600">Start: </span>
-                              <span className="text-gray-900">{timeline.startDate}</span>
+                              <span className="text-gray-900">
+                                {formatDateTimeForDisplay(timeline.startDate)}
+                              </span>
                             </div>
                             <div>
                               <span className="text-gray-600">End: </span>
-                              <span className="text-gray-900">{timeline.endDate}</span>
-                            </div>
-                            <div>
-                              <span className={`inline-block px-2 py-1 rounded text-xs ${getStatusColor(timeline.status)}`}>
-                                {timeline.status}
+                              <span className="text-gray-900">
+                                {formatDateTimeForDisplay(timeline.endDate)}
                               </span>
                             </div>
+                          </div>
+                          <div className="mt-2">
+                            <span className={`inline-block px-2 py-1 rounded text-xs ${getStatusColor(timeline.status)}`}>
+                              {timeline.status}
+                            </span>
                           </div>
                         </div>
                         <button

@@ -11,6 +11,27 @@ interface ProjectDetailModalProps {
   readOnly?: boolean;
 }
 
+// Helper function to format date for datetime-local input
+const formatForInput = (date?: string) => {
+  if (!date) return '';
+  const d = new Date(date);
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
+
+// Helper function to format date for display
+const formatDisplayDate = (date?: string) => {
+  if (!date) return 'No deadline';
+  const d = new Date(date);
+  return d.toLocaleString('en-GB', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
+
 export function ProjectDetailModal({
   project,
   onClose,
@@ -24,7 +45,7 @@ export function ProjectDetailModal({
     title: project.title,
     description: project.description,
     priority: project.priority || '',
-    dueDate: project.dueDate || '',
+    dueDate: formatForInput(project.dueDate),
     estimatedEffort: project.estimatedEffort || '',
     status: project.status,
   });
@@ -229,7 +250,7 @@ export function ProjectDetailModal({
               <label className="block text-gray-700 mb-2">Due Date</label>
               {isEditing && !readOnly ? (
                 <input
-                  type="date"
+                  type="datetime-local"
                   value={formData.dueDate}
                   onChange={(e) =>
                     setFormData({ ...formData, dueDate: e.target.value })
@@ -237,7 +258,7 @@ export function ProjectDetailModal({
                   className="w-full px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-gray-400"
                 />
               ) : (
-                <div className="text-gray-900">{project.dueDate || 'No deadline'}</div>
+                <div className="text-gray-900">{formatDisplayDate(project.dueDate)}</div>
               )}
             </div>
 
@@ -288,7 +309,7 @@ export function ProjectDetailModal({
             {/* Created Date */}
             <div>
               <label className="block text-gray-700 mb-2">Created Date</label>
-              <div className="text-gray-900">{project.createdAt}</div>
+              <div className="text-gray-900">{formatDisplayDate(project.createdAt)}</div>
             </div>
 
             {/* Project Progress Timeline Section */}
@@ -649,7 +670,7 @@ export function ProjectDetailModal({
                         title: project.title,
                         description: project.description,
                         priority: project.priority || '',
-                        dueDate: project.dueDate || '',
+                        dueDate: formatForInput(project.dueDate),
                         estimatedEffort: project.estimatedEffort || '',
                         status: project.status,
                       });

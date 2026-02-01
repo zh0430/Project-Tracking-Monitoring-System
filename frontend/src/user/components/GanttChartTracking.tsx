@@ -32,22 +32,36 @@ export function GanttChartTracking({
   const [searchProjectId, setSearchProjectId] = useState<string>('');
   const [showFilters, setShowFilters] = useState(true);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
-  const [selectedMonth, setSelectedMonth] = useState<string>(''); // Add month filter state
+  
+  // Helper function to get current month in YYYY-MM format
+  const getCurrentMonth = () => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  };
 
-  // Fixed date range: Jan 1, 2025 - Dec 31, 2025
+  // Initialize with date range (from/to months)
+  const currentMonth = getCurrentMonth();
+  const [fromMonth, setFromMonth] = useState<string>(currentMonth);
+  const [toMonth, setToMonth] = useState<string>(currentMonth);
+
+  // Calculate active year based on projects
+  const activeYear = useMemo(() => {
+    if (projects.length === 0) return new Date().getFullYear();
+
+    const years = projects.map(p => new Date(p.createdAt).getFullYear());
+    return Math.min(...years);
+  }, [projects]);
+
+  // Fixed date range: Jan 1 - Dec 31 of active year
   const dateRange = useMemo(() => {
-    // If a month is selected, use that month's range
-    if (selectedMonth) {
-      const [year, month] = selectedMonth.split('-').map(Number);
-      const start = new Date(year, month - 1, 1);
-      const end = new Date(year, month, 0); // Last day of the month
-      return { start, end };
-    }
-    // Otherwise use full year
-    const start = new Date(2025, 0, 1); // January 1, 2025
-    const end = new Date(2025, 11, 31); // December 31, 2025
+    const [fromY, fromM] = fromMonth.split('-').map(Number);
+    const [toY, toM] = toMonth.split('-').map(Number);
+
+    const start = new Date(fromY, fromM - 1, 1);
+    const end = new Date(toY, toM, 0); // last day of end month
+
     return { start, end };
-  }, [selectedMonth]);
+  }, [fromMonth, toMonth]);
 
   // Calculate total days based on date range
   const totalDays = useMemo(() => {
@@ -55,29 +69,43 @@ export function GanttChartTracking({
     return Math.ceil(diff / (1000 * 60 * 60 * 24)) + 1;
   }, [dateRange]);
 
-  // Generate date markers based on selected month
+  // Generate date markers based on date range
   const dateMarkers = useMemo(() => {
     const markers = [];
-    if (selectedMonth) {
-      // Show weekly markers for the selected month
-      const [year, month] = selectedMonth.split('-').map(Number);
-      const daysInMonth = new Date(year, month, 0).getDate();
+    const start = dateRange.start;
+    const end = dateRange.end;
+    
+    // Check if range is within a single month
+    const isSingleMonth = 
+      start.getFullYear() === end.getFullYear() && 
+      start.getMonth() === end.getMonth();
+    
+    if (isSingleMonth) {
+      // Show weekly markers for single month
+      const daysInMonth = end.getDate();
       for (let day = 1; day <= daysInMonth; day += 7) {
-        markers.push(new Date(year, month - 1, day));
+        markers.push(new Date(start.getFullYear(), start.getMonth(), day));
       }
       // Add the last day if not already included
-      const lastDay = new Date(year, month - 1, daysInMonth);
-      if (markers[markers.length - 1].getDate() !== daysInMonth) {
+      const lastDay = new Date(start.getFullYear(), start.getMonth(), daysInMonth);
+      if (markers.length === 0 || markers[markers.length - 1].getDate() !== daysInMonth) {
         markers.push(lastDay);
       }
     } else {
-      // Show monthly markers for full year
-      for (let i = 0; i < 12; i++) {
-        markers.push(new Date(2025, i, 1));
+      // Show monthly markers for multi-month range
+      const current = new Date(start);
+      while (current <= end) {
+        markers.push(new Date(current));
+        current.setMonth(current.getMonth() + 1);
+        current.setDate(1);
+      }
+      // Add end date if not already included
+      if (markers.length === 0 || markers[markers.length - 1].getTime() !== end.getTime()) {
+        markers.push(end);
       }
     }
     return markers;
-  }, [selectedMonth]);
+  }, [dateRange]);
 
   const calculatePosition = (date: string) => {
     const d = new Date(date);
@@ -94,11 +122,15 @@ export function GanttChartTracking({
   };
 
   const formatDate = (date: Date) => {
-    if (selectedMonth) {
-      // Show day and month for month view
+    const isSingleMonth = 
+      dateRange.start.getFullYear() === dateRange.end.getFullYear() && 
+      dateRange.start.getMonth() === dateRange.end.getMonth();
+    
+    if (isSingleMonth) {
+      // Show day and month for single month view
       return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     }
-    return date.toLocaleDateString('en-US', { month: 'short' });
+    return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
   };
 
   // Filter projects - show only current user's projects
@@ -113,8 +145,19 @@ export function GanttChartTracking({
       );
     }
 
+    // date range filter
+    filtered = filtered.filter(project => {
+      if (!project.createdAt || !project.dueDate) return false;
+
+      const start = new Date(project.createdAt);
+      const end = new Date(project.dueDate);
+
+      // overlap check
+      return end >= dateRange.start && start <= dateRange.end;
+    });
+
     return filtered;
-  }, [projects, searchProjectId]);
+  }, [projects, searchProjectId, dateRange]);
 
   // Calculate statistics
   const stats = useMemo(() => {
@@ -127,7 +170,9 @@ export function GanttChartTracking({
 
   const clearFilters = () => {
     setSearchProjectId('');
-    setSelectedMonth('');
+    const current = getCurrentMonth();
+    setFromMonth(current);
+    setToMonth(current);
   };
 
   const handleExport = async () => {
@@ -151,6 +196,9 @@ export function GanttChartTracking({
     setSelectedProject(project);
   };
 
+  // Check if any filters are active
+  const hasActiveFilters = searchProjectId || fromMonth !== currentMonth || toMonth !== currentMonth;
+
   return (
     <div className="space-y-4">
       {/* Back Button */}
@@ -170,9 +218,9 @@ export function GanttChartTracking({
               <Calendar className="w-6 h-6 text-red-600" />
             </div>
             <div>
-              <h2 className="text-gray-900">My Projects Gantt Chart 2025</h2>
+              <h2 className="text-gray-900">My Projects Gantt Chart {activeYear}</h2>
               <p className="text-gray-600 text-sm mt-1">
-                Track your project progress from January to December 2025
+                Track your project progress from {dateRange.start.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })} to {dateRange.end.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
               </p>
             </div>
           </div>
@@ -227,24 +275,35 @@ export function GanttChartTracking({
                 />
               </div>
 
-              {/* Month Filter */}
+              {/* Month Range Filter */}
               <div>
                 <label className="block text-gray-700 mb-2 text-sm">
-                  Filter by Month
+                  Date Range
                 </label>
-                <input
-                  type="month"
-                  value={selectedMonth}
-                  onChange={(e) => setSelectedMonth(e.target.value)}
-                  min="2025-01"
-                  max="2025-12"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 text-sm"
-                />
+                <div className="flex items-center gap-2">
+                  <input
+                    type="month"
+                    value={fromMonth}
+                    onChange={(e) => setFromMonth(e.target.value)}
+                    min={`${activeYear}-01`}
+                    max={`${activeYear}-12`}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 text-sm"
+                  />
+                  <span className="text-gray-500 text-sm">to</span>
+                  <input
+                    type="month"
+                    value={toMonth}
+                    onChange={(e) => setToMonth(e.target.value)}
+                    min={fromMonth}
+                    max={`${activeYear}-12`}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 text-sm"
+                  />
+                </div>
               </div>
             </div>
 
             {/* Active Filters Display */}
-            {(searchProjectId || selectedMonth) && (
+            {hasActiveFilters && (
               <div className="flex items-center gap-2 flex-wrap pt-2">
                 <span className="text-sm text-gray-600">Active Filters:</span>
                 {searchProjectId && (
@@ -255,10 +314,13 @@ export function GanttChartTracking({
                     </button>
                   </span>
                 )}
-                {selectedMonth && (
+                {(fromMonth !== currentMonth || toMonth !== currentMonth) && (
                   <span className="inline-flex items-center gap-1 px-3 py-1 bg-red-100 text-red-700 rounded-full text-sm">
-                    Month: {new Date(selectedMonth + '-01').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-                    <button onClick={() => setSelectedMonth('')} className="hover:bg-red-200 rounded-full p-0.5">
+                    Range:
+                    {new Date(fromMonth + '-01').toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                    →
+                    {new Date(toMonth + '-01').toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                    <button onClick={clearFilters} className="hover:bg-red-200 rounded-full p-0.5">
                       <X className="w-3 h-3" />
                     </button>
                   </span>
@@ -294,7 +356,7 @@ export function GanttChartTracking({
       {/* Gantt Chart */}
       <div className="bg-white rounded-lg border border-gray-300 overflow-hidden">
         <div className="overflow-x-auto">
-          <div className="min-w-[1800px]">
+          <div className="w-full">
             {/* Timeline Header */}
             <div className="flex border-b border-gray-300 bg-gray-50 sticky top-0 z-20">
               <div className="w-80 p-4 border-r border-gray-300">
@@ -303,35 +365,20 @@ export function GanttChartTracking({
                   <span className="text-gray-700">Employee / Project</span>
                 </div>
               </div>
-              <div className="flex-1 relative h-20 p-2">
+              <div className="flex-1 relative h-20 p-2 min-w-0">
                 <div className="flex items-center justify-between text-xs text-gray-600 mb-2">
-                  {selectedMonth ? (
-                    <>
-                      <span className="px-2 py-1 bg-white rounded border border-gray-300">
-                        {new Date(selectedMonth + '-01').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-                      </span>
-                      <span className="text-gray-700">← Scroll to view month →</span>
-                      <span className="px-2 py-1 bg-white rounded border border-gray-300">
-                        {dateMarkers.length} week markers
-                      </span>
-                    </>
-                  ) : (
-                    <>
-                      <span className="px-2 py-1 bg-white rounded border border-gray-300">
-                        January 2025
-                      </span>
-                      <span className="text-gray-700">← Scroll to view full year →</span>
-                      <span className="px-2 py-1 bg-white rounded border border-gray-300">
-                        December 2025
-                      </span>
-                    </>
-                  )}
+                  <span className="px-2 py-1 bg-white rounded border border-gray-300">
+                    {dateRange.start.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                  </span>
+                  <span className="text-gray-700">← Scroll to view timeline →</span>
+                  <span className="px-2 py-1 bg-white rounded border border-gray-300">
+                    {dateRange.end.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                  </span>
                 </div>
                 <div className="relative h-10 border-t border-gray-300">
                   {dateMarkers.map((date, idx) => {
-                    const position = selectedMonth 
-                      ? (idx / (dateMarkers.length - 1)) * 100  // Evenly distribute for month view
-                      : (idx / 12) * 100; // Monthly distribution for year view
+                    const totalDuration = dateRange.end.getTime() - dateRange.start.getTime();
+                    const position = ((date.getTime() - dateRange.start.getTime()) / totalDuration) * 100;
                     return (
                       <div
                         key={idx}
@@ -418,7 +465,7 @@ export function GanttChartTracking({
                       </div>
 
                       {/* Timeline Visualization */}
-                      <div className="flex-1 relative p-4 min-h-[100px]">
+                      <div className="flex-1 relative p-4 min-h-[100px] min-w-0">
                         <div className="relative h-full">
                           {/* Today line */}
                           <div
@@ -493,12 +540,20 @@ export function GanttChartTracking({
             {myProjects.length === 0 && (
               <div className="p-12 text-center text-gray-600">
                 <Calendar className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-                <p className="text-gray-900 mb-1">No projects assigned</p>
+                <p className="text-gray-900 mb-1">No projects found</p>
                 <p className="text-sm">
-                  {searchProjectId 
+                  {searchProjectId || fromMonth !== currentMonth || toMonth !== currentMonth
                     ? 'Try adjusting your search filters' 
-                    : 'You currently have no projects assigned to you'}
+                    : 'You currently have no projects assigned to you in the selected date range'}
                 </p>
+                {hasActiveFilters && (
+                  <button
+                    onClick={clearFilters}
+                    className="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                  >
+                    Clear Filters
+                  </button>
+                )}
               </div>
             )}
           </div>

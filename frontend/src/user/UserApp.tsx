@@ -83,23 +83,27 @@ const ProjectSubmissionFormWrapper = () => {
 };
 
 const HistoricalProjectWrapper = () => {
+  const navigate = useNavigate();
   const [projects, setProjects] = useState<Project[]>([]);
   const token = localStorage.getItem("token");
-  
+
   useEffect(() => {
     if (!token) return;
-    
+
     fetch("http://localhost:5000/api/projects", {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
+      headers: { Authorization: `Bearer ${token}` },
     })
       .then(res => res.ok ? res.json() : [])
       .then(setProjects)
       .catch(() => setProjects([]));
   }, [token]);
 
-  return <HistoricalProjectView projects={projects} />;
+  return (
+    <HistoricalProjectView
+      projects={projects}
+      onBack={() => navigate('/user/projects')}
+    />
+  );
 };
 
 // Main UserApp component
@@ -114,6 +118,18 @@ function MainUserApp() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [successMessage, setSuccessMessage] = useState<string>('');
+
+  // Fetch projects from API
+  const fetchProjects = () => {
+    const token = localStorage.getItem("token");
+
+    fetch("http://localhost:5000/api/projects", {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(res => res.ok ? res.json() : [])
+      .then(setProjects)
+      .catch(() => setProjects([]));
+  };
 
   // Check authentication and fetch user data
   useEffect(() => {
@@ -166,26 +182,8 @@ function MainUserApp() {
         setLoading(false);
       });
 
-    // Fetch projects data from API
-    fetch("http://localhost:5000/api/projects", {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    })
-      .then(res => {
-        if (!res.ok) {
-          throw new Error('Failed to fetch projects');
-        }
-        return res.json();
-      })
-      .then(data => {
-        setProjects(data);
-      })
-      .catch(error => {
-        console.error('Error fetching projects:', error);
-        // Start with empty projects array if API fails
-        setProjects([]);
-      });
+    // Fetch initial projects data
+    fetchProjects();
   }, [navigate]);
 
   const showSuccessMessage = (message: string) => {
@@ -210,8 +208,8 @@ function MainUserApp() {
         }
         return res.json();
       })
-      .then(newProject => {
-        setProjects([...projects, newProject]);
+      .then(() => {
+        fetchProjects(); // 🔥 Refresh projects from DB
         navigate('dashboard');
         showSuccessMessage('Project submitted for review.');
       })
@@ -223,7 +221,7 @@ function MainUserApp() {
 
   const handleUpdateProject = (projectId: string, updates: Partial<Project>) => {
     const token = localStorage.getItem("token");
-    
+
     fetch(`http://localhost:5000/api/projects/${projectId}`, {
       method: "PUT",
       headers: {
@@ -233,47 +231,37 @@ function MainUserApp() {
       body: JSON.stringify(updates),
     })
       .then(res => {
-        if (!res.ok) {
-          throw new Error('Failed to update project');
-        }
+        if (!res.ok) throw new Error("Failed to update project");
         return res.json();
       })
-      .then(updatedProject => {
-        setProjects(projects.map(project => 
-          project.id === projectId ? updatedProject : project
-        ));
-        navigate('dashboard');
-        showSuccessMessage('Project updated successfully.');
+      .then(() => {
+        fetchProjects(); // 🔥 Refresh projects from DB
+        showSuccessMessage("Project updated successfully.");
       })
       .catch(error => {
-        console.error('Error updating project:', error);
-        showSuccessMessage('Failed to update project. Please try again.');
+        console.error(error);
+        showSuccessMessage("Failed to update project.");
       });
   };
 
   const handleDeleteProject = (projectId: string) => {
     const token = localStorage.getItem("token");
-    
+
     fetch(`http://localhost:5000/api/projects/${projectId}`, {
       method: "DELETE",
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
+      headers: { Authorization: `Bearer ${token}` },
     })
       .then(res => {
-        if (!res.ok) {
-          throw new Error('Failed to delete project');
-        }
+        if (!res.ok) throw new Error("Failed to delete project");
         return res.json();
       })
       .then(() => {
-        setProjects(projects.filter(project => project.id !== projectId));
-        navigate('dashboard');
-        showSuccessMessage('Project deleted successfully.');
+        fetchProjects(); // 🔥 Refresh projects from DB
+        showSuccessMessage("Project deleted successfully.");
       })
       .catch(error => {
-        console.error('Error deleting project:', error);
-        showSuccessMessage('Failed to delete project. Please try again.');
+        console.error(error);
+        showSuccessMessage("Failed to delete project.");
       });
   };
 
@@ -435,7 +423,8 @@ function MainUserApp() {
             <GanttChartTracking
               projects={projects}
               onUpdateProject={handleUpdateProject}
-              onDeleteAccount={handleDeleteProject}
+              onDeleteProject={handleDeleteProject}
+              onBack={() => navigate('/user/projects')}
             />
           }
         />

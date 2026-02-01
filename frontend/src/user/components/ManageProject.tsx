@@ -41,7 +41,7 @@ export function ManageProject({
     return () => clearInterval(timer);
   }, []);
 
-  // Format date and time
+  // Format date and time for display
   const formatDateTime = (date: Date) => {
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
@@ -51,18 +51,65 @@ export function ManageProject({
     return `${month}/${day}/${year} ${hours}:${minutes}`;
   };
 
+  // Format date for display in table
+  const formatDisplayDate = (dateString?: string) => {
+    if (!dateString) return 'No deadline';
+    
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return 'Invalid date';
+      
+      const now = new Date();
+      const isToday = date.toDateString() === now.toDateString();
+      const isTomorrow = new Date(now.setDate(now.getDate() + 1)).toDateString() === date.toDateString();
+      
+      if (isToday) {
+        return `Today, ${date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}`;
+      } else if (isTomorrow) {
+        return `Tomorrow, ${date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}`;
+      }
+      
+      return date.toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+      });
+    } catch (error) {
+      return 'Invalid date';
+    }
+  };
+
   const activeProjects = projects.filter((project) => project.status !== 'Completed');
 
   // Apply filters
   const filteredProjects = activeProjects.filter((project) => {
-    if (filters.dueDate && project.dueDate !== filters.dueDate) return false;
+    if (filters.dueDate) {
+      if (!project.dueDate) return false;
+
+      const projectDate = new Date(project.dueDate);
+      const filterDate = new Date(filters.dueDate);
+
+      if (
+        projectDate.getFullYear() !== filterDate.getFullYear() ||
+        projectDate.getMonth() !== filterDate.getMonth() ||
+        projectDate.getDate() !== filterDate.getDate()
+      ) {
+        return false;
+      }
+    }
+
     if (filters.priority && project.priority !== filters.priority) return false;
+
     if (
       filters.searchTerm &&
       !project.title.toLowerCase().includes(filters.searchTerm.toLowerCase()) &&
       !project.projectId.toLowerCase().includes(filters.searchTerm.toLowerCase())
     )
       return false;
+
     return true;
   });
 
@@ -125,7 +172,7 @@ export function ManageProject({
         project.title,
         project.status,
         project.priority || 'Not set',
-        project.dueDate || 'No deadline',
+        project.dueDate ? formatDisplayDate(project.dueDate) : 'No deadline',
       ]),
     });
     doc.save('projects.pdf');
@@ -182,7 +229,7 @@ export function ManageProject({
                         children: [new Paragraph(project.priority || 'Not set')],
                       }),
                       new TableCell({
-                        children: [new Paragraph(project.dueDate || 'No deadline')],
+                        children: [new Paragraph(project.dueDate ? formatDisplayDate(project.dueDate) : 'No deadline')],
                       }),
                     ],
                   });
@@ -375,7 +422,7 @@ export function ManageProject({
                       </span>
                     </td>
                     <td className="px-6 py-4 text-gray-700 whitespace-nowrap align-top">
-                      {project.dueDate || 'No deadline'}
+                      {formatDisplayDate(project.dueDate)}
                     </td>
                     <td className="px-6 py-4 align-top">
                       <button
