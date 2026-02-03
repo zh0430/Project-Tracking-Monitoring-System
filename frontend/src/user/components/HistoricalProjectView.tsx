@@ -5,7 +5,7 @@ import { ProjectDetailModal } from './ProjectDetailModal';
 import { ExportDropdown } from './ExportDropdown';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 import { Document, Packer, Paragraph, Table, TableCell, TableRow, WidthType } from 'docx';
 
 interface HistoricalProjectViewProps {
@@ -24,6 +24,27 @@ export function HistoricalProjectView({ projects, onBack }: HistoricalProjectVie
 
   const completedProjects = projects.filter((project) => project.status === 'Completed');
 
+  // Format date for display
+  const formatDisplayDate = (dateString?: string) => {
+    if (!dateString) return 'No date';
+
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return 'Invalid date';
+
+      return date.toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+      });
+    } catch {
+      return 'Invalid date';
+    }
+  };
+
   // Apply filters
   const filteredProjects = completedProjects.filter((project) => {
     if (
@@ -31,13 +52,28 @@ export function HistoricalProjectView({ projects, onBack }: HistoricalProjectVie
       !project.projectId.toLowerCase().includes(filters.projectId.toLowerCase())
     )
       return false;
+
     if (
       filters.projectTitle &&
       !project.title.toLowerCase().includes(filters.projectTitle.toLowerCase())
     )
       return false;
-    if (filters.completedDate && project.createdAt !== filters.completedDate)
-      return false;
+
+    if (filters.completedDate) {
+      if (!project.createdAt) return false;
+
+      const projectDate = new Date(project.createdAt);
+      const filterDate = new Date(filters.completedDate);
+
+      if (
+        projectDate.getFullYear() !== filterDate.getFullYear() ||
+        projectDate.getMonth() !== filterDate.getMonth() ||
+        projectDate.getDate() !== filterDate.getDate()
+      ) {
+        return false;
+      }
+    }
+
     return true;
   });
 
@@ -73,7 +109,7 @@ export function HistoricalProjectView({ projects, onBack }: HistoricalProjectVie
       'Project Title': project.title,
       Description: project.description,
       Priority: project.priority || 'Not set',
-      'Completed Date': project.createdAt,
+      'Completed Date': formatDisplayDate(project.createdAt),
       Effort: project.estimatedEffort || 'Not specified',
       Documents: project.documents?.length || 0,
       'Timeline Entries': project.timelines?.length || 0,
@@ -87,29 +123,27 @@ export function HistoricalProjectView({ projects, onBack }: HistoricalProjectVie
 
   const exportToPDF = () => {
     const doc = new jsPDF();
-    
+
     doc.setFontSize(16);
     doc.text('Completed Projects Report', 14, 15);
     doc.setFontSize(10);
     doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, 22);
 
-    doc.autoTable({
+    autoTable(doc, {
       startY: 30,
-      head: [
-        [
-          'Project ID',
-          'Project Title',
-          'Priority',
-          'Completed Date',
-          'Effort',
-          'Docs',
-        ],
-      ],
-      body: filteredProjects.map((project) => [
+      head: [[
+        'Project ID',
+        'Project Title',
+        'Priority',
+        'Completed Date',
+        'Effort',
+        'Docs',
+      ]],
+      body: filteredProjects.map(project => [
         project.projectId,
         project.title,
         project.priority || 'Not set',
-        project.createdAt,
+        formatDisplayDate(project.createdAt),
         project.estimatedEffort || 'Not specified',
         project.documents?.length || 0,
       ]),
@@ -174,7 +208,7 @@ export function HistoricalProjectView({ projects, onBack }: HistoricalProjectVie
                         children: [new Paragraph(project.priority || 'Not set')],
                       }),
                       new TableCell({
-                        children: [new Paragraph(project.createdAt)],
+                        children: [new Paragraph(formatDisplayDate(project.createdAt))],
                       }),
                       new TableCell({
                         children: [new Paragraph(project.estimatedEffort || 'Not specified')],
@@ -192,14 +226,15 @@ export function HistoricalProjectView({ projects, onBack }: HistoricalProjectVie
       ],
     });
 
-    const buffer = await Packer.toBuffer(doc);
-    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
-    const url = window.URL.createObjectURL(blob);
+    const blob = await Packer.toBlob(doc);
+    const url = URL.createObjectURL(blob);
+
     const a = document.createElement('a');
     a.href = url;
     a.download = 'completed_projects.docx';
     a.click();
-    window.URL.revokeObjectURL(url);
+
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -338,7 +373,9 @@ export function HistoricalProjectView({ projects, onBack }: HistoricalProjectVie
                       {project.priority || 'Not set'}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-gray-700">{project.createdAt}</td>
+                  <td className="px-6 py-4 text-gray-700">
+                    {formatDisplayDate(project.createdAt)}
+                  </td>
                   <td className="px-6 py-4 text-gray-700">
                     {project.estimatedEffort || 'Not specified'}
                   </td>

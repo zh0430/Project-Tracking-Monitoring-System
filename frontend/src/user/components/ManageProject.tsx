@@ -5,8 +5,8 @@ import { ClipboardList, Plus, History, Filter, Check } from 'lucide-react';
 import { ExportDropdown } from './ExportDropdown';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
-import 'jspdf-autotable';
-import { Document, Packer, Paragraph, Table, TableCell, TableRow, WidthType, AlignmentType } from 'docx';
+import autoTable from 'jspdf-autotable';
+import { Document, Packer, Paragraph, Table, TableCell, TableRow, WidthType } from 'docx';
 
 interface ManageProjectProps {
   projects: Project[];
@@ -163,10 +163,9 @@ export function ManageProject({
 
   const exportToPDF = () => {
     const doc = new jsPDF();
-    doc.autoTable({
-      head: [
-        ['Project ID', 'Project Title', 'Status', 'Priority', 'Due Date'],
-      ],
+    
+    autoTable(doc, {
+      head: [['Project ID', 'Project Title', 'Status', 'Priority', 'Due Date']],
       body: filteredProjects.map((project) => [
         project.projectId,
         project.title,
@@ -175,80 +174,57 @@ export function ManageProject({
         project.dueDate ? formatDisplayDate(project.dueDate) : 'No deadline',
       ]),
     });
+
     doc.save('projects.pdf');
   };
 
   const exportToWord = async () => {
     const doc = new Document({
-      sections: [
-        {
-          properties: {},
-          children: [
-            new Paragraph({
-              text: 'Projects',
-              heading: 1,
-            }),
-            new Table({
-              width: {
-                size: 100,
-                type: WidthType.PERCENTAGE,
-              },
-              rows: [
+      sections: [{
+        children: [
+          new Paragraph({ text: 'Projects', heading: 1 }),
+          new Table({
+            width: { size: 100, type: WidthType.PERCENTAGE },
+            rows: [
+              new TableRow({
+                children: [
+                  new TableCell({ children: [new Paragraph('Project ID')] }),
+                  new TableCell({ children: [new Paragraph('Project Title')] }),
+                  new TableCell({ children: [new Paragraph('Status')] }),
+                  new TableCell({ children: [new Paragraph('Priority')] }),
+                  new TableCell({ children: [new Paragraph('Due Date')] }),
+                ],
+              }),
+              ...filteredProjects.map(project =>
                 new TableRow({
                   children: [
+                    new TableCell({ children: [new Paragraph(project.projectId)] }),
+                    new TableCell({ children: [new Paragraph(project.title)] }),
+                    new TableCell({ children: [new Paragraph(project.status)] }),
+                    new TableCell({ children: [new Paragraph(project.priority || 'Not set')] }),
                     new TableCell({
-                      children: [new Paragraph('Project ID')],
-                    }),
-                    new TableCell({
-                      children: [new Paragraph('Project Title')],
-                    }),
-                    new TableCell({
-                      children: [new Paragraph('Status')],
-                    }),
-                    new TableCell({
-                      children: [new Paragraph('Priority')],
-                    }),
-                    new TableCell({
-                      children: [new Paragraph('Due Date')],
+                      children: [new Paragraph(
+                        project.dueDate ? formatDisplayDate(project.dueDate) : 'No deadline'
+                      )],
                     }),
                   ],
-                }),
-                ...filteredProjects.map((project) => {
-                  return new TableRow({
-                    children: [
-                      new TableCell({
-                        children: [new Paragraph(project.projectId)],
-                      }),
-                      new TableCell({
-                        children: [new Paragraph(project.title)],
-                      }),
-                      new TableCell({
-                        children: [new Paragraph(project.status)],
-                      }),
-                      new TableCell({
-                        children: [new Paragraph(project.priority || 'Not set')],
-                      }),
-                      new TableCell({
-                        children: [new Paragraph(project.dueDate ? formatDisplayDate(project.dueDate) : 'No deadline')],
-                      }),
-                    ],
-                  });
-                }),
-              ],
-            }),
-          ],
-        },
-      ],
+                })
+              ),
+            ],
+          }),
+        ],
+      }],
     });
 
-    const buffer = await Packer.toBuffer(doc);
-    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
-    const url = window.URL.createObjectURL(blob);
+    const blob = await Packer.toBlob(doc); // ✅ important change
+    const url = URL.createObjectURL(blob);
+
     const a = document.createElement('a');
     a.href = url;
     a.download = 'projects.docx';
     a.click();
-    window.URL.revokeObjectURL(url);
+
+    URL.revokeObjectURL(url);
   };
 
   return (
