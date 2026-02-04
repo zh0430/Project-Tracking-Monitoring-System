@@ -184,39 +184,70 @@ export function GanttChartTracking({
   const captureGanttImage = async () => {
     if (!ganttRef.current) return null;
 
-    const clone = ganttRef.current.cloneNode(true) as HTMLElement;
+    const original = ganttRef.current;
+
+    // Create a simple clone - keep all classes intact!
+    const clone = original.cloneNode(true) as HTMLElement;
+
+    // Apply base positioning styles only
     clone.style.position = 'fixed';
     clone.style.left = '-99999px';
     clone.style.top = '0';
-    clone.style.background = '#ffffff';
+    clone.style.width = original.scrollWidth + 'px';
+    clone.style.height = original.scrollHeight + 'px';
+    clone.style.overflow = 'visible';
 
     document.body.appendChild(clone);
 
-    const walker = document.createTreeWalker(clone, NodeFilter.SHOW_ELEMENT);
-    let node = walker.currentNode as HTMLElement;
+    // Function to replace oklch colors in inline styles only
+    const fixOklchColors = (element: HTMLElement) => {
+      const computed = window.getComputedStyle(element);
+      
+      // Only set inline styles if the computed color contains oklch
+      if (computed.backgroundColor && computed.backgroundColor.includes('oklch')) {
+        element.style.backgroundColor = 'rgb(255, 255, 255)'; // white fallback
+      }
+      if (computed.color && computed.color.includes('oklch')) {
+        element.style.color = 'rgb(0, 0, 0)'; // black fallback
+      }
+      if (computed.borderColor && computed.borderColor.includes('oklch')) {
+        element.style.borderColor = 'rgb(209, 213, 219)'; // gray-300 fallback
+      }
+    };
 
-    const unsafeColor = (value: string) =>
-      value.includes('oklab') || value.includes('oklch') || value.includes('color(');
-
-    while (node) {
-      const style = window.getComputedStyle(node);
-
-      if (unsafeColor(style.color)) node.style.color = '#000000';
-      if (unsafeColor(style.backgroundColor)) node.style.backgroundColor = '#ffffff';
-      if (unsafeColor(style.borderColor)) node.style.borderColor = '#000000';
-
-      node = walker.nextNode() as HTMLElement;
+    // Process all elements but keep their classes
+    try {
+      const allElements = clone.querySelectorAll('*');
+      allElements.forEach(el => {
+        if (el instanceof HTMLElement) {
+          fixOklchColors(el);
+        }
+      });
+      fixOklchColors(clone);
+    } catch (e) {
+      console.warn('Error fixing oklch colors:', e);
     }
 
-    const canvas = await html2canvas(clone, {
-      scale: 2,
-      backgroundColor: '#ffffff',
-      useCORS: true,
-    });
+    try {
+      const canvas = await html2canvas(clone, {
+        scale: 2,
+        backgroundColor: '#ffffff',
+        useCORS: true,
+        allowTaint: true,
+        logging: false,
+        width: clone.scrollWidth,
+        height: clone.scrollHeight,
+        windowWidth: clone.scrollWidth,
+        windowHeight: clone.scrollHeight,
+      });
 
-    document.body.removeChild(clone);
-
-    return canvas.toDataURL('image/png');
+      document.body.removeChild(clone);
+      return canvas.toDataURL('image/png');
+    } catch (error) {
+      document.body.removeChild(clone);
+      console.error('Error capturing Gantt chart:', error);
+      throw error;
+    }
   };
 
   // Export to Excel with image
@@ -313,12 +344,16 @@ export function GanttChartTracking({
       doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 40, 50);
       doc.text(`Date Range: ${dateRange.start.toLocaleDateString()} to ${dateRange.end.toLocaleDateString()}`, 40, 65);
 
-      // Add image
-      doc.addImage(image, 'PNG', 40, 80, 720, 300);
+      // Add image with proper aspect ratio
+      const imgProps = doc.getImageProperties(image);
+      const pdfWidth = doc.internal.pageSize.getWidth() - 80;
+      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+
+      doc.addImage(image, 'PNG', 40, 80, pdfWidth, pdfHeight);
 
       // Add project data table
       doc.setFontSize(14);
-      doc.text('Project Details', 40, 400);
+      doc.text('Project Details', 40, 80 + pdfHeight + 20);
       
       const tableData = myProjects.map(project => [
         project.projectId,
@@ -330,7 +365,7 @@ export function GanttChartTracking({
       ]);
 
       autoTable(doc, {
-        startY: 410,
+        startY: 80 + pdfHeight + 30,
         head: [['Project ID', 'Title', 'Status', 'Priority', 'Start Date', 'Due Date']],
         body: tableData,
         styles: { fontSize: 8 },
@@ -377,8 +412,8 @@ export function GanttChartTracking({
                 new ImageRun({
                   data: Uint8Array.from(atob(imageData), c => c.charCodeAt(0)),
                   transformation: {
-                    width: 700,
-                    height: 300,
+                    width: 1000,
+                    height: 500,
                   },
                 }),
               ],
