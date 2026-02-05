@@ -151,6 +151,11 @@ export function ProjectDetailModal({
   };
 
   const handleDelete = () => {
+    if (project.status === 'Completed') {
+      alert('Completed projects cannot be deleted.');
+      return;
+    }
+
     onDeleteProject(project.id);
     onClose();
   };
@@ -651,7 +656,7 @@ export function ProjectDetailModal({
 
           {/* Actions */}
           <div className="flex items-center justify-between p-6 border-t border-gray-200 bg-gray-50 sticky bottom-0">
-            {!readOnly && (
+            {!readOnly && project.status !== 'Completed' && (
               <button
                 onClick={() => setShowDeleteConfirm(true)}
                 className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"

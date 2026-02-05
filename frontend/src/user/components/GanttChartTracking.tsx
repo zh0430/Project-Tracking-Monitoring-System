@@ -5,9 +5,9 @@ import { ProjectDetailModal } from './ProjectDetailModal';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import html2canvas from 'html2canvas';
+import { domToPng } from 'modern-screenshot';
 import ExcelJS from 'exceljs';
-import { Document, Packer, Paragraph, ImageRun } from 'docx';
+import { Document, Packer, Paragraph, ImageRun, Table, TableRow, TableCell, WidthType } from 'docx';
 
 interface GanttChartTrackingProps {
   projects: Project[];
@@ -22,6 +22,50 @@ const currentEmployee = {
   name: 'John Smith',
   email: 'john.smith@company.com',
   department: 'Software Development'
+};
+
+// Date formatting function
+const formatDisplayDate = (dateString?: string) => {
+  if (!dateString) return 'No deadline';
+
+  try {
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return 'Invalid date';
+
+    const now = new Date();
+    const isToday = date.toDateString() === now.toDateString();
+
+    const tomorrow = new Date();
+    tomorrow.setDate(now.getDate() + 1);
+    const isTomorrow = date.toDateString() === tomorrow.toDateString();
+
+    if (isToday) {
+      return `Today, ${date.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+      })}`;
+    }
+
+    if (isTomorrow) {
+      return `Tomorrow, ${date.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+      })}`;
+    }
+
+    return date.toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    });
+  } catch {
+    return 'Invalid date';
+  }
 };
 
 export function GanttChartTracking({
@@ -64,6 +108,9 @@ export function GanttChartTracking({
 
     const start = new Date(fromY, fromM - 1, 1);
     const end = new Date(toY, toM, 0); // last day of end month
+
+    // 🔥 force end of day (23:59:59.999)
+    end.setHours(23, 59, 59, 999);
 
     return { start, end };
   }, [fromMonth, toMonth]);
@@ -114,16 +161,17 @@ export function GanttChartTracking({
 
   const calculatePosition = (date: string) => {
     const d = new Date(date);
-    const dayOfYear = Math.floor((d.getTime() - dateRange.start.getTime()) / (1000 * 60 * 60 * 24));
-    return (dayOfYear / totalDays) * 100;
+    const diff = d.getTime() - dateRange.start.getTime();
+    const totalRange = dateRange.end.getTime() - dateRange.start.getTime();
+    return Math.min(Math.max((diff / totalRange) * 100, 0), 100);
   };
 
   const calculateWidth = (startDate: string, endDate: string) => {
     const start = new Date(startDate);
     const end = new Date(endDate);
     const diff = end.getTime() - start.getTime();
-    const daysDiff = diff / (1000 * 60 * 60 * 24);
-    return Math.max((daysDiff / totalDays) * 100, 0.3);
+    const totalRange = dateRange.end.getTime() - dateRange.start.getTime();
+    return Math.min(Math.max((diff / totalRange) * 100, 0.3), 100);
   };
 
   const formatDate = (date: Date) => {
@@ -184,70 +232,13 @@ export function GanttChartTracking({
   const captureGanttImage = async () => {
     if (!ganttRef.current) return null;
 
-    const original = ganttRef.current;
+    const dataUrl = await domToPng(ganttRef.current, {
+      quality: 1,
+      scale: 2,
+      backgroundColor: '#ffffff',
+    });
 
-    // Create a simple clone - keep all classes intact!
-    const clone = original.cloneNode(true) as HTMLElement;
-
-    // Apply base positioning styles only
-    clone.style.position = 'fixed';
-    clone.style.left = '-99999px';
-    clone.style.top = '0';
-    clone.style.width = original.scrollWidth + 'px';
-    clone.style.height = original.scrollHeight + 'px';
-    clone.style.overflow = 'visible';
-
-    document.body.appendChild(clone);
-
-    // Function to replace oklch colors in inline styles only
-    const fixOklchColors = (element: HTMLElement) => {
-      const computed = window.getComputedStyle(element);
-      
-      // Only set inline styles if the computed color contains oklch
-      if (computed.backgroundColor && computed.backgroundColor.includes('oklch')) {
-        element.style.backgroundColor = 'rgb(255, 255, 255)'; // white fallback
-      }
-      if (computed.color && computed.color.includes('oklch')) {
-        element.style.color = 'rgb(0, 0, 0)'; // black fallback
-      }
-      if (computed.borderColor && computed.borderColor.includes('oklch')) {
-        element.style.borderColor = 'rgb(209, 213, 219)'; // gray-300 fallback
-      }
-    };
-
-    // Process all elements but keep their classes
-    try {
-      const allElements = clone.querySelectorAll('*');
-      allElements.forEach(el => {
-        if (el instanceof HTMLElement) {
-          fixOklchColors(el);
-        }
-      });
-      fixOklchColors(clone);
-    } catch (e) {
-      console.warn('Error fixing oklch colors:', e);
-    }
-
-    try {
-      const canvas = await html2canvas(clone, {
-        scale: 2,
-        backgroundColor: '#ffffff',
-        useCORS: true,
-        allowTaint: true,
-        logging: false,
-        width: clone.scrollWidth,
-        height: clone.scrollHeight,
-        windowWidth: clone.scrollWidth,
-        windowHeight: clone.scrollHeight,
-      });
-
-      document.body.removeChild(clone);
-      return canvas.toDataURL('image/png');
-    } catch (error) {
-      document.body.removeChild(clone);
-      console.error('Error capturing Gantt chart:', error);
-      throw error;
-    }
+    return dataUrl;
   };
 
   // Export to Excel with image
@@ -393,6 +384,41 @@ export function GanttChartTracking({
 
       const imageData = image.split(',')[1];
 
+      // Create table rows
+      const rows = [
+        new TableRow({
+          children: [
+            'Project ID',
+            'Title',
+            'Status',
+            'Priority',
+            'Start Date',
+            'Due Date'
+          ].map(text =>
+            new TableCell({
+              width: { size: 16, type: WidthType.PERCENTAGE },
+              children: [new Paragraph({ text, bold: true })],
+            })
+          ),
+        }),
+        ...myProjects.map(project =>
+          new TableRow({
+            children: [
+              project.projectId,
+              project.title,
+              project.status,
+              project.priority || 'N/A',
+              project.createdAt,
+              project.dueDate || 'N/A',
+            ].map(text =>
+              new TableCell({
+                children: [new Paragraph(String(text))],
+              })
+            ),
+          })
+        ),
+      ];
+
       const doc = new Document({
         sections: [{
           children: [
@@ -418,6 +444,12 @@ export function GanttChartTracking({
                 }),
               ],
             }),
+            new Paragraph({}),
+            new Paragraph({ text: 'Project Details', heading: 2 }),
+            new Table({ 
+              rows,
+              width: { size: 100, type: WidthType.PERCENTAGE },
+            }),
           ],
         }],
       });
@@ -437,25 +469,6 @@ export function GanttChartTracking({
       alert('Error exporting to Word. Please try again.');
       setShowExportMenu(false);
     }
-  };
-
-  // Original simple Excel export
-  const handleSimpleExcelExport = () => {
-    const exportData = myProjects.map((project) => ({
-      'Project ID': project.projectId,
-      'Title': project.title,
-      'Status': project.status,
-      'Priority': project.priority || 'N/A',
-      'Start Date': project.createdAt,
-      'Due Date': project.dueDate || 'N/A',
-      'Category': project.workCategory,
-    }));
-
-    const worksheet = XLSX.utils.json_to_sheet(exportData);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'My Projects Gantt Chart');
-    XLSX.writeFile(workbook, 'my_gantt_chart.xlsx');
-    setShowExportMenu(false);
   };
 
   const handleViewDetails = (project: Project) => {
@@ -514,12 +527,6 @@ export function GanttChartTracking({
                     className="menu-btn"
                   >
                     Excel (with image)
-                  </button>
-                  <button
-                    onClick={handleSimpleExcelExport}
-                    className="menu-btn"
-                  >
-                    Excel (data only)
                   </button>
                   <button
                     onClick={handleExportPDF}
@@ -658,9 +665,15 @@ export function GanttChartTracking({
       </div>
 
       {/* Gantt Chart Container with ref */}
-      <div ref={ganttRef}>
+      <div
+        ref={ganttRef}
+        style={{
+          width: '100%',
+          maxWidth: '100%',
+        }}
+      >
         <div className="bg-white rounded-lg border border-gray-300 overflow-hidden">
-          <div className="overflow-x-auto">
+          <div className="w-full">
             <div className="w-full">
               {/* Timeline Header */}
               <div className="flex border-b border-gray-300 bg-gray-50 sticky top-0 z-20">
@@ -754,9 +767,9 @@ export function GanttChartTracking({
                               {project.title}
                             </p>
                             <div className="flex items-center gap-3 text-xs text-gray-600">
-                              <span>{project.createdAt}</span>
+                              <span>{formatDisplayDate(project.createdAt)}</span>
                               <span>→</span>
-                              <span>{project.dueDate || 'No due date'}</span>
+                              <span>{formatDisplayDate(project.dueDate)}</span>
                             </div>
                             {hasTimeline && (
                               <button
@@ -771,7 +784,10 @@ export function GanttChartTracking({
 
                         {/* Timeline Visualization */}
                         <div className="flex-1 relative p-4 min-h-[100px] min-w-0">
-                          <div className="relative h-full">
+                          <div
+                            className="relative h-full"
+                            style={{ width: '100%', position: 'relative' }}
+                          >
                             {/* Today line */}
                             <div
                               className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-10"
@@ -907,7 +923,13 @@ export function GanttChartTracking({
           project={selectedProject}
           onClose={() => setSelectedProject(null)}
           onUpdateProject={onUpdateProject}
-          onDeleteProject={onDeleteProject}
+          onDeleteProject={(id) => {
+            if (selectedProject.status === 'Completed') {
+              alert('Completed projects cannot be deleted.');
+              return;
+            }
+            onDeleteProject(id);
+          }}
         />
       )}
 
