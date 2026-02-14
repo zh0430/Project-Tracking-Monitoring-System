@@ -75,11 +75,12 @@ export function EmployeeSummary({
     );
   }
 
+  // Filter tasks for the selected employee using employeeId from URL
   const employeeTasks = tasks.filter(t => {
     if (Array.isArray(t.assignedToUserID)) {
-      return t.assignedToUserID.includes(selectedEmployee.userID);
+      return t.assignedToUserID.includes(employeeId as string);
     }
-    return t.assignedToUserID === selectedEmployee.userID;
+    return t.assignedToUserID === employeeId;
   });
   
   const filteredTasks = employeeTasks.filter(task => {

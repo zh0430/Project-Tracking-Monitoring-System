@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../config/db');
+const authenticate = require('../middleware/auth.middleware');
 
 // GET all projects
 router.get('/', async (req, res) => {
@@ -29,8 +30,8 @@ router.get('/', async (req, res) => {
   }
 });
 
-// POST new project
-router.post('/', async (req, res) => {
+// POST new project - Protected route
+router.post('/', authenticate, async (req, res) => {
   try {
     const {
       title,
@@ -42,7 +43,14 @@ router.post('/', async (req, res) => {
       timelines = []
     } = req.body;
 
-    const result = await db.query(
+    // Get the internal user ID from the authenticated user
+    const internalUserId = req.user.userId;
+
+    // Start a transaction
+    await db.query('BEGIN');
+
+    // Insert the project
+    const projectResult = await db.query(
       `INSERT INTO projects
       (project_id, title, description, priority, due_date, estimated_effort, documents, timelines)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
@@ -59,8 +67,30 @@ router.post('/', async (req, res) => {
       ]
     );
 
-    res.json(result.rows[0]);
+    // Create matching task
+    await db.query(
+      `INSERT INTO tasks
+      (title, assigned_to_user_id, reported_by_user_id,
+       status_id, priority_id, creation_date, due_date)
+      VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+      [
+        title,
+        internalUserId, // user creating project (from auth middleware)
+        internalUserId,
+        1, // default status = To Do
+        priority === "High" ? 3 : priority === "Medium" ? 2 : 1,
+        new Date(),
+        dueDate
+      ]
+    );
+
+    // Commit the transaction
+    await db.query('COMMIT');
+
+    res.json(projectResult.rows[0]);
   } catch (err) {
+    // Rollback in case of error
+    await db.query('ROLLBACK');
     console.error('POST project error:', err);
     res.status(500).json({ error: 'Failed to create project' });
   }

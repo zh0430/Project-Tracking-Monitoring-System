@@ -98,10 +98,70 @@ router.post(
   resetUserPassword
 );
 
-// Placeholder endpoints (to be implemented)
-router.get("/tasks", authenticate, authorizeAdmin, (req, res) => res.json([]));
-router.get("/priorities", authenticate, authorizeAdmin, (req, res) => res.json([]));
-router.get("/statuses", authenticate, authorizeAdmin, (req, res) => res.json([]));
+// Get all tasks (admin only) with user details
+router.get("/tasks", authenticate, authorizeAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT
+        t.task_id AS "taskID",
+        t.title,
+        u.public_user_id AS "assignedToUserID",
+        r.public_user_id AS "reportedByUserID",
+        t.status_id AS "statusID",
+        t.priority_id AS "priorityID",
+        t.creation_date AS "createdDate",
+        t.due_date AS "dueDate",
+        t.completion_date AS "completedDate"
+      FROM tasks t
+      JOIN users u ON t.assigned_to_user_id = u.user_id
+      JOIN users r ON t.reported_by_user_id = r.user_id
+      ORDER BY t.creation_date DESC
+    `);
+
+    res.json(result.rows);
+  } catch (err) {
+    console.error("Admin /tasks error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// Get all statuses (admin only)
+router.get("/statuses", authenticate, authorizeAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT
+        status_id AS "statusID",
+        status_name AS "statusName"
+      FROM status
+      ORDER BY status_id
+    `);
+
+    res.json(result.rows);
+  } catch (err) {
+    console.error("Admin /statuses error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// Get all priorities (admin only)
+router.get("/priorities", authenticate, authorizeAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT
+        priority_id AS "priorityID",
+        priority_level AS "priorityLevel"
+      FROM priority
+      ORDER BY priority_id
+    `);
+
+    res.json(result.rows);
+  } catch (err) {
+    console.error("Admin /priorities error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// Get notifications (placeholder)
 router.get("/notifications", authenticate, authorizeAdmin, (req, res) => res.json([]));
 
 module.exports = router;

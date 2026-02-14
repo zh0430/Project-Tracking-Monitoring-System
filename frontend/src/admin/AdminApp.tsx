@@ -119,9 +119,12 @@ export default function AdminApp() {
       try {
         // Fetch admin profile
         const adminResponse = await fetch("http://localhost:5000/api/admin/me", {
+          method: "GET",
           headers: {
+            "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
+          credentials: "include",
         });
 
         if (!adminResponse.ok) {
@@ -135,51 +138,88 @@ export default function AdminApp() {
         await Promise.all([
           // Fetch roles
           fetch("http://localhost:5000/api/admin/roles", {
+            method: "GET",
             headers: {
+              "Content-Type": "application/json",
               Authorization: `Bearer ${token}`,
             },
+            credentials: "include",
           }).then(res => res.ok ? res.json() : []),
           
           // Fetch employees
           fetch("http://localhost:5000/api/admin/employees", {
+            method: "GET",
             headers: {
+              "Content-Type": "application/json",
               Authorization: `Bearer ${token}`,
             },
+            credentials: "include",
           }).then(res => res.ok ? res.json() : []),
           
           // Fetch priorities
           fetch("http://localhost:5000/api/admin/priorities", {
+            method: "GET",
             headers: {
+              "Content-Type": "application/json",
               Authorization: `Bearer ${token}`,
             },
+            credentials: "include",
           }).then(res => res.ok ? res.json() : []),
           
           // Fetch statuses
           fetch("http://localhost:5000/api/admin/statuses", {
+            method: "GET",
             headers: {
+              "Content-Type": "application/json",
               Authorization: `Bearer ${token}`,
             },
+            credentials: "include",
           }).then(res => res.ok ? res.json() : []),
           
           // Fetch tasks
           fetch("http://localhost:5000/api/admin/tasks", {
+            method: "GET",
             headers: {
+              "Content-Type": "application/json",
               Authorization: `Bearer ${token}`,
             },
-          }).then(res => res.ok ? res.json() : []),
+            credentials: "include",
+          }).then(res => {
+            console.log("TOKEN:", token);
+            return res.ok ? res.json() : [];
+          }),
           
           // Fetch notifications
           fetch("http://localhost:5000/api/admin/notifications", {
+            method: "GET",
             headers: {
+              "Content-Type": "application/json",
               Authorization: `Bearer ${token}`,
             },
+            credentials: "include",
           }).then(res => res.ok ? res.json() : []),
         ]).then(([rolesData, employeesData, prioritiesData, statusesData, tasksData, notificationsData]) => {
           setRoles(rolesData || []);
           setEmployees(employeesData || []);
           setPriorities(prioritiesData || []);
           setStatuses(statusesData || []);
-          setTasks(tasksData || []);
+          
+          // Transform tasks data to ensure all fields are properly typed
+          setTasks(
+            (tasksData || []).map((t: any) => ({
+              ...t,
+              taskID: String(t.taskID),
+              assignedToUserID: t.assignedToUserID,
+              reportedByUserID: String(t.reportedByUserID),
+              statusID: String(t.statusID),
+              priorityID: String(t.priorityID),
+              createdDate: t.createdDate,
+              dueDate: t.dueDate,
+              completedDate: t.completedDate,
+              documents: t.documents || [],
+            }))
+          );
+          
           setNotifications(notificationsData || []);
         });
       } catch (error) {
@@ -225,6 +265,7 @@ export default function AdminApp() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
+        credentials: "include",
         body: JSON.stringify(updatedTask),
       });
 
@@ -253,6 +294,7 @@ export default function AdminApp() {
                 'Content-Type': 'application/json',
                 Authorization: `Bearer ${token}`,
               },
+              credentials: "include",
               body: JSON.stringify({
                 userID,
                 message: `Project requires revision: ${updatedTaskData.title}`,
@@ -264,9 +306,12 @@ export default function AdminApp() {
 
         // Refresh notifications
         const notificationsResponse = await fetch("http://localhost:5000/api/admin/notifications", {
+          method: "GET",
           headers: {
+            "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
+          credentials: "include",
         });
         const newNotifications = await notificationsResponse.json();
         setNotifications(newNotifications || []);
@@ -285,6 +330,7 @@ export default function AdminApp() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
+        credentials: "include",
         body: JSON.stringify(updatedEmployee),
       });
 
@@ -308,6 +354,7 @@ export default function AdminApp() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
+        credentials: "include",
         body: JSON.stringify(task),
       });
 
@@ -331,6 +378,7 @@ export default function AdminApp() {
               'Content-Type': 'application/json',
               Authorization: `Bearer ${token}`,
             },
+            credentials: "include",
             body: JSON.stringify({
               userID,
               message: `New project assigned: ${task.title}`,
@@ -342,9 +390,12 @@ export default function AdminApp() {
 
       // Refresh notifications
       const notificationsResponse = await fetch("http://localhost:5000/api/admin/notifications", {
+        method: "GET",
         headers: {
+          "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
+        credentials: "include",
       });
       const updatedNotifications = await notificationsResponse.json();
       setNotifications(updatedNotifications || []);
@@ -362,6 +413,7 @@ export default function AdminApp() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
+        credentials: "include",
         body: JSON.stringify(updatedAdmin),
       });
 
@@ -382,8 +434,10 @@ export default function AdminApp() {
       const response = await fetch(`http://localhost:5000/api/admin/tasks/${taskId}`, {
         method: 'DELETE',
         headers: {
+          'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
+        credentials: "include",
       });
 
       if (!response.ok) {

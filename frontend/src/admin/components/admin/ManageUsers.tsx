@@ -3,6 +3,11 @@ import { Employee, Role, Task, Priority, Status } from '../../App';
 import { Plus, Download } from 'lucide-react';
 import { AssignTaskModal } from './AssignTaskModal';
 import { exportAllTasksToExcel } from '../../utils/excelExport';
+import {
+  exportUsersExcel,
+  exportUsersPDF,
+  exportUsersWord
+} from '../../../shared/utils/userExport';
 
 interface ManageUsersProps {
   employees: Employee[];
@@ -29,6 +34,7 @@ export function ManageUsers({
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
   const [tempPassword, setTempPassword] = useState<string | null>(null);
   const [resetUserId, setResetUserId] = useState<string | null>(null);
+  const [showExportMenu, setShowExportMenu] = useState(false);
 
   // Sort employees by User ID (extract numeric part)
   const sortedEmployees = [...employees].sort((a, b) => {
@@ -85,20 +91,85 @@ export function ManageUsers({
     }
   };
 
+  const handleExport = (type: "excel" | "pdf" | "word") => {
+    const data = sortedEmployees.map(employee => {
+      const employeeTasks = tasks.filter(t => {
+        if (Array.isArray(t.assignedToUserID)) {
+          return t.assignedToUserID.includes(employee.userID);
+        }
+        return t.assignedToUserID === employee.userID;
+      });
+
+      const role = roles.find(r => r.roleID === employee.roleID);
+
+      return {
+        userID: employee.userID,
+        name: employee.name,
+        email: employee.email,
+        role: role?.roleName || "",
+        projects: employeeTasks.length,
+      };
+    });
+
+    if (type === "excel") exportUsersExcel(data);
+    if (type === "pdf") exportUsersPDF(data);
+    if (type === "word") exportUsersWord(data);
+    
+    setShowExportMenu(false);
+  };
+
+  // Close export menu when clicking outside
+  const handleClickOutside = (e: React.MouseEvent) => {
+    if (showExportMenu && !(e.target as HTMLElement).closest('.export-menu-container')) {
+      setShowExportMenu(false);
+    }
+  };
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" onClick={handleClickOutside}>
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-gray-900 mb-1">Manage Users</h2>
           <p className="text-gray-600">Assign projects to team members</p>
         </div>
-        <button
-          onClick={handleExportAll}
-          className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-        >
-          <Download className="w-4 h-4" />
-          Export All Projects
-        </button>
+        <div className="relative w-fit export-menu-container">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowExportMenu(!showExportMenu);
+            }}
+            className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+          >
+            <Download className="w-4 h-4" />
+            Export
+          </button>
+
+          {showExportMenu && (
+            <div
+              className="absolute left-1/2 -translate-x-1/2 top-full mt-2 bg-white border border-gray-200 rounded-lg shadow-lg z-10 min-w-[140px] flex flex-col"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                onClick={() => handleExport("excel")}
+                className="w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-100 text-sm rounded-t-lg"
+              >
+                Excel
+              </button>
+              <button
+                onClick={() => handleExport("pdf")}
+                className="w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-100 text-sm"
+              >
+                PDF
+              </button>
+              <button
+                onClick={() => handleExport("word")}
+                className="w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-100 text-sm rounded-b-lg"
+              >
+                Word
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {tempPassword && (
@@ -183,22 +254,6 @@ export function ManageUsers({
             })}
           </tbody>
         </table>
-      </div>
-
-      {/* Role Distribution */}
-      <div className="bg-white rounded-lg border border-gray-300 p-6">
-        <h3 className="text-gray-900 mb-4">Role Distribution</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-          {roles.map(role => {
-            const count = employees.filter(e => e.roleID === role.roleID).length;
-            return (
-              <div key={role.roleID} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-300">
-                <span className="text-gray-700">{role.roleName}</span>
-                <span className="text-gray-900">{count} {count === 1 ? 'user' : 'users'}</span>
-              </div>
-            );
-          })}
-        </div>
       </div>
 
       {/* Assign Task Modal */}

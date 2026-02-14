@@ -37,8 +37,9 @@
             "docx": "^9.5.1",
             "embla-carousel-react": "^8.6.0",
             "exceljs": "^4.4.0",
+            "file-saver": "^2.0.5",
             "input-otp": "^1.4.2",
-            "jspdf": "^4.0.0",
+            "jspdf": "^4.1.0",
             "jspdf-autotable": "^5.0.7",
             "lucide-react": "^0.487.0",
             "modern-screenshot": "^4.6.8",
@@ -53,7 +54,7 @@
             "sonner": "^2.0.3",
             "tailwind-merge": "*",
             "vaul": "^1.1.2",
-            "xlsx": "*"
+            "xlsx": "^0.18.5"
       },
       "devDependencies": {
             "@types/node": "^20.10.0",

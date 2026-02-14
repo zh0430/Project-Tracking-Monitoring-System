@@ -2,6 +2,7 @@ import { useState, useMemo, useRef } from 'react';
 import { Project, ProjectTimeline, User } from '../App';
 import { Calendar, Users, Filter, X, Download, ArrowLeft, CheckCircle } from 'lucide-react';
 import { ProjectDetailModal } from './ProjectDetailModal';
+import { captureElementImage, exportGanttPDF } from '../../shared/utils/userExport';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -319,58 +320,21 @@ export function GanttChartTracking({
 
   // Export to PDF with image
   const handleExportPDF = async () => {
-    try {
-      const image = await captureGanttImage();
-      if (!image) {
-        alert('Could not capture Gantt chart image');
-        return;
-      }
+    const image = await captureElementImage(ganttRef.current);
+    if (!image) return;
 
-      const doc = new jsPDF('l', 'px', 'a4'); // landscape
+    const tableData = myProjects.map(p => [
+      p.projectId,
+      p.title,
+      p.status,
+      p.priority || 'N/A',
+    ]);
 
-      // Title
-      doc.setFontSize(20);
-      doc.text('Gantt Chart Report', 40, 30);
-      doc.setFontSize(12);
-      doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 40, 50);
-      doc.text(`Date Range: ${dateRange.start.toLocaleDateString()} to ${dateRange.end.toLocaleDateString()}`, 40, 65);
-
-      // Add image with proper aspect ratio
-      const imgProps = doc.getImageProperties(image);
-      const pdfWidth = doc.internal.pageSize.getWidth() - 80;
-      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-
-      doc.addImage(image, 'PNG', 40, 80, pdfWidth, pdfHeight);
-
-      // Add project data table
-      doc.setFontSize(14);
-      doc.text('Project Details', 40, 80 + pdfHeight + 20);
-      
-      const tableData = myProjects.map(project => [
-        project.projectId,
-        project.title.substring(0, 30) + (project.title.length > 30 ? '...' : ''),
-        project.status,
-        project.priority || 'N/A',
-        project.createdAt,
-        project.dueDate || 'N/A'
-      ]);
-
-      autoTable(doc, {
-        startY: 80 + pdfHeight + 30,
-        head: [['Project ID', 'Title', 'Status', 'Priority', 'Start Date', 'Due Date']],
-        body: tableData,
-        styles: { fontSize: 8 },
-        headStyles: { fillColor: [31, 41, 55] },
-        margin: { left: 40, right: 40 }
-      });
-
-      doc.save('gantt_chart_report.pdf');
-      setShowExportMenu(false);
-    } catch (error) {
-      console.error('Error exporting to PDF:', error);
-      alert('Error exporting to PDF. Please try again.');
-      setShowExportMenu(false);
-    }
+    await exportGanttPDF(
+      image,
+      tableData,
+      `${dateRange.start.toDateString()} → ${dateRange.end.toDateString()}`
+    );
   };
 
   // Export to Word with image

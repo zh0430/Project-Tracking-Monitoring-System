@@ -10,7 +10,12 @@ const userRoutes = require("./routes/users");
 const projectsRoutes = require('./routes/projects'); // ✅ ADDED THIS
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: "http://localhost:3000",
+  credentials: true,
+  allowedHeaders: ["Content-Type", "Authorization"],
+  methods: ["GET", "POST", "PUT", "DELETE", "PATCH"]
+}));
 app.use(express.json());
 
 // Health check
