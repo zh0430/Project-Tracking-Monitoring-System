@@ -18,7 +18,8 @@ router.get('/', async (req, res) => {
         status,
         created_at AS "createdAt",
         documents,
-        timelines
+        timelines,
+        task_id AS "taskId"
       FROM projects
       ORDER BY created_at DESC
     `);
@@ -39,21 +40,60 @@ router.post('/', authenticate, async (req, res) => {
       priority,
       dueDate,
       estimatedEffort,
+      assignedUserId,
       documents = [],
       timelines = []
     } = req.body;
 
-    // Get the internal user ID from the authenticated user
-    const internalUserId = req.user.userId;
+    // fallback: assign to creator if not provided
+    const reporterId = req.user.userId;
+    const finalAssignedUserId = assignedUserId || reporterId;
 
     // Start a transaction
     await db.query('BEGIN');
 
-    // Insert the project
+    // Convert public ID → internal numeric ID only if provided
+    let internalAssignedUserId = finalAssignedUserId;
+
+    if (typeof finalAssignedUserId === "string" && finalAssignedUserId.startsWith("USR-")) {
+      const userResult = await db.query(
+        `SELECT user_id FROM users WHERE public_user_id = $1`,
+        [finalAssignedUserId]
+      );
+
+      if (userResult.rows.length === 0) {
+        throw new Error("Assigned user not found");
+      }
+
+      internalAssignedUserId = userResult.rows[0].user_id;
+    }
+
+    // Create task FIRST
+    const taskResult = await db.query(`
+      INSERT INTO tasks
+      (title, assigned_to_user_id, reported_by_user_id,
+       status_id, priority_id, creation_date, due_date)
+      VALUES ($1,$2,$3,$4,$5,$6,$7)
+      RETURNING task_id
+    `, [
+      title,
+      internalAssignedUserId,
+      reporterId,
+      1, // default status = To Do
+      priority === "High" ? 3 : priority === "Medium" ? 2 : 1,
+      new Date(),
+      dueDate
+    ]);
+
+    const newTaskId = taskResult.rows[0].task_id;
+
+    // Insert project WITH task link
     const projectResult = await db.query(
       `INSERT INTO projects
-      (project_id, title, description, priority, due_date, estimated_effort, documents, timelines)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+      (project_id, title, description, priority,
+       due_date, estimated_effort, documents,
+       timelines, task_id)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
       RETURNING *`,
       [
         'PRJ-' + Date.now(),
@@ -63,24 +103,8 @@ router.post('/', authenticate, async (req, res) => {
         dueDate,
         estimatedEffort,
         JSON.stringify(documents),
-        JSON.stringify(timelines)
-      ]
-    );
-
-    // Create matching task
-    await db.query(
-      `INSERT INTO tasks
-      (title, assigned_to_user_id, reported_by_user_id,
-       status_id, priority_id, creation_date, due_date)
-      VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-      [
-        title,
-        internalUserId, // user creating project (from auth middleware)
-        internalUserId,
-        1, // default status = To Do
-        priority === "High" ? 3 : priority === "Medium" ? 2 : 1,
-        new Date(),
-        dueDate
+        JSON.stringify(timelines),
+        newTaskId
       ]
     );
 

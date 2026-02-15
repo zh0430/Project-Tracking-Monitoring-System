@@ -56,6 +56,19 @@ export interface Task {
   timeline?: ProjectTimeline[]; // Track project workflow
 }
 
+export interface Project {
+  projectId: string;
+  title: string;
+  description: string;
+  assignedToUserID: string;
+  statusID: string;
+  priorityID: string;
+  createdDate: string;
+  dueDate: string;
+  completedDate: string | null;
+  documents: TaskDocument[];
+}
+
 export interface TaskDocument {
   documentID: string;
   fileName: string;
@@ -105,6 +118,7 @@ export default function AdminApp() {
   const [priorities, setPriorities] = useState<Priority[]>([]);
   const [statuses, setStatuses] = useState<Status[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -189,6 +203,16 @@ export default function AdminApp() {
             return res.ok ? res.json() : [];
           }),
           
+          // Fetch projects
+          fetch("http://localhost:5000/api/admin/projects", {
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            credentials: "include",
+          }).then(res => res.ok ? res.json() : []),
+          
           // Fetch notifications
           fetch("http://localhost:5000/api/admin/notifications", {
             method: "GET",
@@ -198,16 +222,41 @@ export default function AdminApp() {
             },
             credentials: "include",
           }).then(res => res.ok ? res.json() : []),
-        ]).then(([rolesData, employeesData, prioritiesData, statusesData, tasksData, notificationsData]) => {
+        ]).then(([rolesData, employeesData, prioritiesData, statusesData, tasksData, projectsData, notificationsData]) => {
           setRoles(rolesData || []);
-          setEmployees(employeesData || []);
-          setPriorities(prioritiesData || []);
-          setStatuses(statusesData || []);
+          
+          // Transform employees data to use public_user_id
+          setEmployees(
+            (employeesData || []).map((u: any) => ({
+              userID: u.userID,
+              roleID: String(u.roleID),
+              name: u.name,
+              email: u.email,
+              passwordHash: u.passwordHash || "",
+            }))
+          );
+          
+          // Transform priorities data
+          setPriorities(
+            (prioritiesData || []).map((p: any) => ({
+              priorityID: String(p.priorityID),
+              priorityLevel: p.priorityLevel,
+            }))
+          );
+          
+          // Transform statuses data
+          setStatuses(
+            (statusesData || []).map((s: any) => ({
+              statusID: String(s.statusID),
+              statusName: s.statusName,
+            }))
+          );
           
           // Transform tasks data to ensure all fields are properly typed
           setTasks(
             (tasksData || []).map((t: any) => ({
               ...t,
+              description: t.description || "",
               taskID: String(t.taskID),
               assignedToUserID: t.assignedToUserID,
               reportedByUserID: String(t.reportedByUserID),
@@ -219,6 +268,29 @@ export default function AdminApp() {
               documents: t.documents || [],
             }))
           );
+
+          // Transform projects data
+          setProjects(
+            (projectsData || []).map((p: any) => ({
+              projectId: String(p.projectID || p.projectId),
+              title: p.title,
+              description: p.description || "",
+              assignedToUserID: String(p.assignedToUserID),
+              statusID: String(p.statusID),
+              priorityID: String(p.priorityID),
+              createdDate: p.createdDate,
+              dueDate: p.dueDate,
+              completedDate: p.completedDate,
+              documents: p.documents || [],
+            }))
+          );
+
+          // Debug logs to check IDs
+          console.log("EMPLOYEE IDS:", employeesData.map((u: any) => u.userID));
+          console.log("TASK ASSIGNED IDS:", tasksData.map((t: any) => t.assignedToUserID));
+          console.log("PROJECTS:", projectsData);
+          console.log("PRIORITIES:", prioritiesData);
+          console.log("STATUSES:", statusesData);
           
           setNotifications(notificationsData || []);
         });
@@ -243,10 +315,11 @@ export default function AdminApp() {
         priorities,
         statuses,
         tasks,
+        projects,
         notifications,
       }));
     }
-  }, [admin, roles, employees, priorities, statuses, tasks, notifications, isAuthenticated]);
+  }, [admin, roles, employees, priorities, statuses, tasks, projects, notifications, isAuthenticated]);
 
   const handleViewEmployeeSummary = (employeeId: string) => {
     navigate(`/admin/summary/${employeeId}`);
@@ -541,13 +614,13 @@ export default function AdminApp() {
               element={
                 <EmployeeSummary
                   employees={employees}
-                  tasks={tasks}
+                  projects={projects}
                   statuses={statuses}
                   priorities={priorities}
                   roles={roles}
                   onApproveUpdate={handleApproveUpdate}
-                  onDeleteTask={handleDeleteTask}
-                  onUpdateTask={handleUpdateTask}
+                  onDeleteProject={handleDeleteTask}
+                  onUpdateProject={handleUpdateTask}
                   currentUserId={admin.adminID}
                 />
               }
@@ -558,13 +631,13 @@ export default function AdminApp() {
               element={
                 <EmployeeSummary
                   employees={employees}
-                  tasks={tasks}
+                  projects={projects}
                   statuses={statuses}
                   priorities={priorities}
                   roles={roles}
                   onApproveUpdate={handleApproveUpdate}
-                  onDeleteTask={handleDeleteTask}
-                  onUpdateTask={handleUpdateTask}
+                  onDeleteProject={handleDeleteTask}
+                  onUpdateProject={handleUpdateTask}
                   currentUserId={admin.adminID}
                 />
               }

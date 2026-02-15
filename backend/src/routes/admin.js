@@ -161,6 +161,59 @@ router.get("/priorities", authenticate, authorizeAdmin, async (req, res) => {
   }
 });
 
+// Get projects assigned to a specific user (admin only)
+router.get("/projects/user/:userId", authenticate, authorizeAdmin, async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const result = await pool.query(`
+      SELECT
+        project_id AS "projectId",
+        title,
+        description,
+        status_id AS "statusID",
+        priority_id AS "priorityID",
+        assigned_to_user_id AS "assignedToUserID",
+        due_date AS "dueDate",
+        creation_date AS "createdDate"
+      FROM projects
+      WHERE assigned_to_user_id = $1
+      ORDER BY creation_date DESC
+    `, [userId]);
+
+    res.json(result.rows);
+  } catch (err) {
+    console.error("Admin /projects/user/:userId error:", err);
+    res.status(500).json({ error: 'Failed to load projects' });
+  }
+});
+
+// Get all projects (admin only) with user details
+router.get("/projects", authenticate, authorizeAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT
+        p.project_id AS "projectID",
+        p.title,
+        p.description,
+        u.public_user_id AS "assignedToUserID",
+        p.status_id AS "statusID",
+        p.priority_id AS "priorityID",
+        p.creation_date AS "createdDate",
+        p.due_date AS "dueDate",
+        p.completion_date AS "completedDate"
+      FROM projects p
+      JOIN users u ON p.assigned_to_user_id = u.user_id
+      ORDER BY p.creation_date DESC
+    `);
+
+    res.json(result.rows);
+  } catch (err) {
+    console.error("Admin /projects error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
 // Get notifications (placeholder)
 router.get("/notifications", authenticate, authorizeAdmin, (req, res) => res.json([]));
 

@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Task, Employee, Status, Priority, Role, TaskDocument } from '../../App';
+import { Project, Employee, Status, Priority, Role, TaskDocument } from '../../App';
 import { Calendar, Clock, Filter, Download, Trash2, Eye, Upload, FileText, X } from 'lucide-react';
 import { DocumentManager } from './DocumentManager';
 import { exportEmployeeTasksToExcel } from '../../utils/excelExport';
@@ -8,25 +8,25 @@ import { ProjectGanttChart } from './ProjectGanttChart';
 
 interface EmployeeSummaryProps {
   employees: Employee[];
-  tasks: Task[];
+  projects?: Project[];
   statuses: Status[];
   priorities: Priority[];
   roles: Role[];
-  onApproveUpdate: (taskId: string) => void;
-  onDeleteTask: (taskId: string) => void;
-  onUpdateTask: (task: Task) => void;
+  onApproveUpdate: (projectId: string) => void;
+  onDeleteProject: (projectId: string) => void;
+  onUpdateProject: (project: Project) => void;
   currentUserId: string;
 }
 
 export function EmployeeSummary({
   employees,
-  tasks,
+  projects = [], // Default to empty array if undefined
   statuses,
   priorities,
   roles,
   onApproveUpdate,
-  onDeleteTask,
-  onUpdateTask,
+  onDeleteProject,
+  onUpdateProject,
   currentUserId,
 }: EmployeeSummaryProps) {
   const { employeeId } = useParams<{ employeeId: string }>();
@@ -37,8 +37,8 @@ export function EmployeeSummary({
   const [filterDueDate, setFilterDueDate] = useState<string>('');
   const [filterSearchText, setFilterSearchText] = useState<string>('');
   const [viewMode, setViewMode] = useState<'active' | 'historical'>('active');
-  const [selectedTaskDetails, setSelectedTaskDetails] = useState<Task | null>(null);
-  const [selectedTaskForGantt, setSelectedTaskForGantt] = useState<Task | null>(null);
+  const [selectedProjectDetails, setSelectedProjectDetails] = useState<Project | null>(null);
+  const [selectedProjectForGantt, setSelectedProjectForGantt] = useState<Project | null>(null);
 
   useEffect(() => {
     if (employees.length === 0) return;
@@ -59,6 +59,76 @@ export function EmployeeSummary({
     ? employees.find(e => e.userID === employeeId)
     : employees[0];
 
+  // Filter projects for the selected employee using employeeId from URL - memoized for performance
+  const employeeProjects = useMemo(() => {
+    return (projects ?? []).filter(p => {
+      const projectUser = String(p.assignedToUserID).trim();
+      const selectedUser = String(employeeId).trim();
+      return projectUser.toLowerCase() === selectedUser.toLowerCase();
+    });
+  }, [projects, employeeId]);
+
+  // Debug log to see employee projects
+  console.log("EMPLOYEE PROJECTS:", employeeProjects);
+  
+  const filteredProjects = useMemo(() => {
+    return employeeProjects.filter(project => {
+      const status = statuses.find(s => s.statusID === project.statusID);
+      const isCompleted = status?.statusName === 'Completed';
+      
+      // View mode filter - for historical, only show completed
+      if (viewMode === 'historical' && !isCompleted) return false;
+      // For active mode, show all projects (including completed)
+      
+      // Search text filter (project ID or title)
+      if (filterSearchText) {
+        const searchLower = filterSearchText.toLowerCase();
+        const matchesId = project.projectId?.toLowerCase().includes(searchLower) || false;
+        const matchesTitle = project.title.toLowerCase().includes(searchLower);
+        if (!matchesId && !matchesTitle) return false;
+      }
+      
+      // Due date filter
+      if (filterDueDate && project.dueDate !== filterDueDate) return false;
+      
+      // Status filter
+      if (filterStatus !== 'all' && project.statusID !== filterStatus) return false;
+      
+      // Priority filter
+      if (filterPriority !== 'all' && project.priorityID !== filterPriority) return false;
+      
+      return true;
+    });
+  }, [employeeProjects, viewMode, filterSearchText, filterDueDate, filterStatus, filterPriority, statuses]);
+
+  const toDoProjects = useMemo(() => {
+    return filteredProjects.filter(p => {
+      const status = statuses.find(s => s.statusID === p.statusID);
+      return status?.statusName === 'To Do';
+    });
+  }, [filteredProjects, statuses]);
+
+  const inProgressProjects = useMemo(() => {
+    return filteredProjects.filter(p => {
+      const status = statuses.find(s => s.statusID === p.statusID);
+      return status?.statusName === 'In Progress';
+    });
+  }, [filteredProjects, statuses]);
+
+  const completedProjects = useMemo(() => {
+    return filteredProjects.filter(p => {
+      const status = statuses.find(s => s.statusID === p.statusID);
+      return status?.statusName === 'Completed';
+    });
+  }, [filteredProjects, statuses]);
+
+  const revisionRequiredProjects = useMemo(() => {
+    return filteredProjects.filter(p => {
+      const status = statuses.find(s => s.statusID === p.statusID);
+      return status?.statusName === 'Revision Required';
+    });
+  }, [filteredProjects, statuses]);
+
   if (employees.length === 0) {
     return (
       <div className="bg-white p-6 rounded-lg border border-gray-300">
@@ -75,68 +145,13 @@ export function EmployeeSummary({
     );
   }
 
-  // Filter tasks for the selected employee using employeeId from URL
-  const employeeTasks = tasks.filter(t => {
-    if (Array.isArray(t.assignedToUserID)) {
-      return t.assignedToUserID.includes(employeeId as string);
-    }
-    return t.assignedToUserID === employeeId;
-  });
-  
-  const filteredTasks = employeeTasks.filter(task => {
-    const status = statuses.find(s => s.statusID === task.statusID);
-    const isCompleted = status?.statusName === 'Completed';
-    
-    // View mode filter - for historical, only show completed
-    if (viewMode === 'historical' && !isCompleted) return false;
-    // For active mode, show all tasks (including completed)
-    
-    // Search text filter (task ID or title)
-    if (filterSearchText) {
-      const searchLower = filterSearchText.toLowerCase();
-      const matchesId = task.taskID.toLowerCase().includes(searchLower);
-      const matchesTitle = task.title.toLowerCase().includes(searchLower);
-      if (!matchesId && !matchesTitle) return false;
-    }
-    
-    // Due date filter
-    if (filterDueDate && task.dueDate !== filterDueDate) return false;
-    
-    // Status filter
-    if (filterStatus !== 'all' && task.statusID !== filterStatus) return false;
-    
-    // Priority filter
-    if (filterPriority !== 'all' && task.priorityID !== filterPriority) return false;
-    
-    return true;
-  });
-
-  const toDoTasks = filteredTasks.filter(t => {
-    const status = statuses.find(s => s.statusID === t.statusID);
-    return status?.statusName === 'To Do';
-  });
-
-  const inProgressTasks = filteredTasks.filter(t => {
-    const status = statuses.find(s => s.statusID === t.statusID);
-    return status?.statusName === 'In Progress';
-  });
-
-  const completedTasks = filteredTasks.filter(t => {
-    const status = statuses.find(s => s.statusID === t.statusID);
-    return status?.statusName === 'Completed';
-  });
-
-  const revisionRequiredTasks = filteredTasks.filter(t => {
-    const status = statuses.find(s => s.statusID === t.statusID);
-    return status?.statusName === 'Revision Required';
-  });
-
   const role = roles.find(r => r.roleID === selectedEmployee.roleID);
 
   const handleExport = async () => {
+    // Note: You'll need to update the export function to handle projects instead of tasks
     await exportEmployeeTasksToExcel(
       selectedEmployee,
-      tasks,
+      projects ?? [],
       statuses,
       priorities
     );
@@ -193,7 +208,7 @@ export function EmployeeSummary({
               : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
           }`}
         >
-          Active Tasks
+          Active Projects
         </button>
         <button
           onClick={() => setViewMode('historical')}
@@ -257,14 +272,14 @@ export function EmployeeSummary({
         </div>
       </div>
 
-      {/* Active Tasks - Kanban Board */}
+      {/* Active Projects - Kanban Board */}
       {viewMode === 'active' && (
         <>
-          {filteredTasks.length === 0 ? (
+          {filteredProjects.length === 0 ? (
             <div className="bg-white border border-gray-300 rounded-lg p-10 text-center text-gray-500">
-              <p className="text-lg font-medium mb-2">No tasks assigned</p>
+              <p className="text-lg font-medium mb-2">No projects assigned</p>
               <p className="text-sm">
-                This employee currently has no tasks.
+                This employee currently has no projects.
               </p>
             </div>
           ) : (
@@ -275,19 +290,19 @@ export function EmployeeSummary({
                   <div className="w-3 h-3 rounded-full bg-gray-400"></div>
                   <h3 className="text-gray-900">To Do</h3>
                   <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-sm">
-                    {toDoTasks.length}
+                    {toDoProjects.length}
                   </span>
                 </div>
                 <div className="space-y-3">
-                  {toDoTasks.map(task => (
-                    <TaskCard
-                      key={task.taskID}
-                      task={task}
+                  {toDoProjects.map(project => (
+                    <ProjectCard
+                      key={project.projectId}
+                      project={project}
                       priorities={priorities}
                       statuses={statuses}
                       employees={employees}
                       onApproveUpdate={onApproveUpdate}
-                      onDelete={onDeleteTask}
+                      onDelete={onDeleteProject}
                     />
                   ))}
                 </div>
@@ -299,19 +314,19 @@ export function EmployeeSummary({
                   <div className="w-3 h-3 rounded-full bg-gray-600"></div>
                   <h3 className="text-gray-900">In Progress</h3>
                   <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-sm">
-                    {inProgressTasks.length}
+                    {inProgressProjects.length}
                   </span>
                 </div>
                 <div className="space-y-3">
-                  {inProgressTasks.map(task => (
-                    <TaskCard
-                      key={task.taskID}
-                      task={task}
+                  {inProgressProjects.map(project => (
+                    <ProjectCard
+                      key={project.projectId}
+                      project={project}
                       priorities={priorities}
                       statuses={statuses}
                       employees={employees}
                       onApproveUpdate={onApproveUpdate}
-                      onDelete={onDeleteTask}
+                      onDelete={onDeleteProject}
                     />
                   ))}
                 </div>
@@ -323,19 +338,19 @@ export function EmployeeSummary({
                   <div className="w-3 h-3 rounded-full bg-red-600"></div>
                   <h3 className="text-gray-900">Revision Required</h3>
                   <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-sm">
-                    {revisionRequiredTasks.length}
+                    {revisionRequiredProjects.length}
                   </span>
                 </div>
                 <div className="space-y-3">
-                  {revisionRequiredTasks.map(task => (
-                    <TaskCard
-                      key={task.taskID}
-                      task={task}
+                  {revisionRequiredProjects.map(project => (
+                    <ProjectCard
+                      key={project.projectId}
+                      project={project}
                       priorities={priorities}
                       statuses={statuses}
                       employees={employees}
                       onApproveUpdate={onApproveUpdate}
-                      onDelete={onDeleteTask}
+                      onDelete={onDeleteProject}
                     />
                   ))}
                 </div>
@@ -347,19 +362,19 @@ export function EmployeeSummary({
                   <div className="w-3 h-3 rounded-full bg-gray-800"></div>
                   <h3 className="text-gray-900">Completed</h3>
                   <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-sm">
-                    {completedTasks.length}
+                    {completedProjects.length}
                   </span>
                 </div>
                 <div className="space-y-3">
-                  {completedTasks.map(task => (
-                    <TaskCard
-                      key={task.taskID}
-                      task={task}
+                  {completedProjects.map(project => (
+                    <ProjectCard
+                      key={project.projectId}
+                      project={project}
                       priorities={priorities}
                       statuses={statuses}
                       employees={employees}
                       onApproveUpdate={onApproveUpdate}
-                      onDelete={onDeleteTask}
+                      onDelete={onDeleteProject}
                     />
                   ))}
                 </div>
@@ -373,26 +388,26 @@ export function EmployeeSummary({
       {viewMode === 'historical' && (
         <div className="bg-white rounded-lg border border-gray-300">
           <div className="p-6 border-b border-gray-300">
-            <h3 className="text-gray-900">Completed Tasks History</h3>
+            <h3 className="text-gray-900">Completed Projects History</h3>
             <p className="text-gray-600 text-sm mt-1">
-              Total completed: {completedTasks.length} tasks
+              Total completed: {completedProjects.length} projects
             </p>
           </div>
           <div className="divide-y divide-gray-300">
-            {completedTasks.length === 0 ? (
+            {completedProjects.length === 0 ? (
               <div className="p-8 text-center text-gray-500">
-                No completed tasks found
+                No completed projects found
               </div>
             ) : (
-              completedTasks.map(task => {
-                const priority = priorities.find(p => p.priorityID === task.priorityID);
+              completedProjects.map(project => {
+                const priority = priorities.find(p => p.priorityID === project.priorityID);
                 
                 return (
-                  <div key={task.taskID} className="p-4 hover:bg-gray-50 transition-colors">
+                  <div key={project.projectId} className="p-4 hover:bg-gray-50 transition-colors">
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
-                        <h4 className="text-gray-900 mb-1">{task.title}</h4>
-                        <p className="text-gray-600 text-sm mb-2">{task.description}</p>
+                        <h4 className="text-gray-900 mb-1">{project.title}</h4>
+                        <p className="text-gray-600 text-sm mb-2">{project.description}</p>
                         <div className="flex gap-2 flex-wrap">
                           <span className={`inline-flex items-center px-2 py-1 rounded text-xs border ${
                             priority?.priorityLevel === 'High'
@@ -406,7 +421,7 @@ export function EmployeeSummary({
                         </div>
                       </div>
                       <button
-                        onClick={() => setSelectedTaskDetails(task)}
+                        onClick={() => setSelectedProjectDetails(project)}
                         className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors ml-4"
                       >
                         <Eye className="w-4 h-4" />
@@ -421,42 +436,41 @@ export function EmployeeSummary({
         </div>
       )}
 
-      {/* Task Details Modal */}
-      {selectedTaskDetails && (
-        <TaskDetailsModal
-          task={selectedTaskDetails}
+      {/* Project Details Modal */}
+      {selectedProjectDetails && (
+        <ProjectDetailsModal
+          project={selectedProjectDetails}
           priorities={priorities}
           employees={employees}
-          onClose={() => setSelectedTaskDetails(null)}
+          onClose={() => setSelectedProjectDetails(null)}
         />
       )}
 
       {/* Gantt Chart Modal */}
-      {selectedTaskForGantt && (
+      {selectedProjectForGantt && (
         <GanttChartModal
-          task={selectedTaskForGantt}
+          project={selectedProjectForGantt}
           employees={employees}
-          onClose={() => setSelectedTaskForGantt(null)}
+          onClose={() => setSelectedProjectForGantt(null)}
         />
       )}
     </div>
   );
 }
 
-interface TaskCardProps {
-  task: Task;
+interface ProjectCardProps {
+  project: Project;
   priorities: Priority[];
   statuses: Status[];
   employees: Employee[];
-  onApproveUpdate: (taskId: string) => void;
-  onDelete: (taskId: string) => void;
+  onApproveUpdate: (projectId: string) => void;
+  onDelete: (projectId: string) => void;
 }
 
-function TaskCard({ task, priorities, statuses, employees, onApproveUpdate, onDelete }: TaskCardProps) {
+function ProjectCard({ project, priorities, statuses, employees, onApproveUpdate, onDelete }: ProjectCardProps) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const priority = priorities.find(p => p.priorityID === task.priorityID);
-  const status = statuses.find(s => s.statusID === task.statusID);
-  const reportedBy = employees.find(e => e.userID === task.reportedByUserID);
+  const priority = priorities.find(p => p.priorityID === project.priorityID);
+  const status = statuses.find(s => s.statusID === project.statusID);
 
   const priorityColors = {
     High: 'bg-red-100 text-red-700 border-red-300',
@@ -465,14 +479,14 @@ function TaskCard({ task, priorities, statuses, employees, onApproveUpdate, onDe
   };
 
   const handleDelete = () => {
-    onDelete(task.taskID);
+    onDelete(project.projectId);
     setShowDeleteConfirm(false);
   };
 
   return (
     <div className="bg-white p-4 rounded-lg border border-gray-300 hover:shadow-md transition-shadow">
-      <h4 className="text-gray-900 mb-2">{task.title}</h4>
-      <p className="text-gray-600 text-sm mb-3">{task.description}</p>
+      <h4 className="text-gray-900 mb-2">{project.title}</h4>
+      <p className="text-gray-600 text-sm mb-3">{project.description}</p>
       
       <div className="space-y-2">
         <div className="flex gap-2 flex-wrap">
@@ -486,23 +500,20 @@ function TaskCard({ task, priorities, statuses, employees, onApproveUpdate, onDe
         <div className="space-y-1 text-sm text-gray-600">
           <div className="flex items-center gap-2">
             <Calendar className="w-4 h-4" />
-            <span>Due: {task.dueDate}</span>
+            <span>Due: {project.dueDate}</span>
           </div>
-          {task.completedDate && (
+          {project.completedDate && (
             <div className="flex items-center gap-2">
               <Clock className="w-4 h-4" />
-              <span>Completed: {task.completedDate}</span>
+              <span>Completed: {project.completedDate}</span>
             </div>
           )}
-          <div className="text-xs text-gray-500">
-            Reported by: {reportedBy?.name || 'Admin'}
-          </div>
         </div>
       </div>
 
       <div className="flex gap-2 mt-4">
         <button
-          onClick={() => onApproveUpdate(task.taskID)}
+          onClick={() => onApproveUpdate(project.projectId)}
           className="flex-1 px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm"
         >
           Update
@@ -510,7 +521,7 @@ function TaskCard({ task, priorities, statuses, employees, onApproveUpdate, onDe
         <button
           onClick={() => setShowDeleteConfirm(true)}
           className="px-3 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm"
-          title="Delete Task"
+          title="Delete Project"
         >
           <Trash2 className="w-4 h-4" />
         </button>
@@ -520,9 +531,9 @@ function TaskCard({ task, priorities, statuses, employees, onApproveUpdate, onDe
       {showDeleteConfirm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg p-6 max-w-sm w-full">
-            <h3 className="text-gray-900 mb-2">Delete Task?</h3>
+            <h3 className="text-gray-900 mb-2">Delete Project?</h3>
             <p className="text-gray-600 mb-4">
-              Are you sure you want to delete "{task.title}"? This action cannot be undone.
+              Are you sure you want to delete "{project.title}"? This action cannot be undone.
             </p>
             <div className="flex gap-3">
               <button
@@ -545,35 +556,34 @@ function TaskCard({ task, priorities, statuses, employees, onApproveUpdate, onDe
   );
 }
 
-interface TaskDetailsModalProps {
-  task: Task;
+interface ProjectDetailsModalProps {
+  project: Project;
   priorities: Priority[];
   employees: Employee[];
   onClose: () => void;
 }
 
-function TaskDetailsModal({ task, priorities, employees, onClose }: TaskDetailsModalProps) {
-  const priority = priorities.find(p => p.priorityID === task.priorityID);
-  const assignedTo = employees.find(e => e.userID === task.assignedToUserID);
-  const reportedBy = employees.find(e => e.userID === task.reportedByUserID);
+function ProjectDetailsModal({ project, priorities, employees, onClose }: ProjectDetailsModalProps) {
+  const priority = priorities.find(p => p.priorityID === project.priorityID);
+  const assignedTo = employees.find(e => e.userID === project.assignedToUserID);
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         <div className="p-6 border-b border-gray-300">
-          <h2 className="text-gray-900">Task Details</h2>
+          <h2 className="text-gray-900">Project Details</h2>
         </div>
         
         <div className="p-6 space-y-6">
           <div>
-            <h3 className="text-gray-900 mb-2">{task.title}</h3>
-            <p className="text-gray-600">{task.description}</p>
+            <h3 className="text-gray-900 mb-2">{project.title}</h3>
+            <p className="text-gray-600">{project.description}</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <p className="text-gray-600 text-sm mb-1">Task ID</p>
-              <p className="text-gray-900">{task.taskID}</p>
+              <p className="text-gray-600 text-sm mb-1">Project ID</p>
+              <p className="text-gray-900">{project.projectId}</p>
             </div>
             <div>
               <p className="text-gray-600 text-sm mb-1">Priority</p>
@@ -592,29 +602,25 @@ function TaskDetailsModal({ task, priorities, employees, onClose }: TaskDetailsM
               <p className="text-gray-900">{assignedTo?.name}</p>
             </div>
             <div>
-              <p className="text-gray-600 text-sm mb-1">Reported By</p>
-              <p className="text-gray-900">{reportedBy?.name || 'Admin'}</p>
-            </div>
-            <div>
               <p className="text-gray-600 text-sm mb-1">Due Date</p>
-              <p className="text-gray-900">{task.dueDate}</p>
+              <p className="text-gray-900">{project.dueDate}</p>
             </div>
             <div>
               <p className="text-gray-600 text-sm mb-1">Created Date</p>
-              <p className="text-gray-900">{task.createdDate}</p>
+              <p className="text-gray-900">{project.createdDate}</p>
             </div>
             <div>
               <p className="text-gray-600 text-sm mb-1">Completed Date</p>
-              <p className="text-gray-900">{task.completedDate || 'N/A'}</p>
+              <p className="text-gray-900">{project.completedDate || 'N/A'}</p>
             </div>
           </div>
 
           {/* Documents Section */}
-          {task.documents.length > 0 && (
+          {project.documents && project.documents.length > 0 && (
             <div className="pt-6 border-t border-gray-300">
               <h4 className="text-gray-900 mb-3">Attached Documents</h4>
               <DocumentManager
-                documents={task.documents}
+                documents={project.documents}
                 onUpload={() => {}}
                 onDelete={() => {}}
                 currentUserId="admin1"
@@ -639,12 +645,12 @@ function TaskDetailsModal({ task, priorities, employees, onClose }: TaskDetailsM
 }
 
 interface GanttChartModalProps {
-  task: Task;
+  project: Project;
   employees: Employee[];
   onClose: () => void;
 }
 
-function GanttChartModal({ task, employees, onClose }: GanttChartModalProps) {
+function GanttChartModal({ project, employees, onClose }: GanttChartModalProps) {
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-lg max-w-6xl w-full max-h-[90vh] overflow-y-auto">
@@ -660,7 +666,7 @@ function GanttChartModal({ task, employees, onClose }: GanttChartModalProps) {
         
         <div className="p-6">
           <ProjectGanttChart
-            task={task}
+            project={project}
             employees={employees}
           />
         </div>

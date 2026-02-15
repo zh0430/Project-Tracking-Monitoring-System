@@ -201,12 +201,13 @@ export function GanttChartTracking({
 
     // date range filter
     filtered = filtered.filter(project => {
-      if (!project.createdAt || !project.dueDate) return false;
+      if (!project.createdAt) return false;
 
       const start = new Date(project.createdAt);
-      const end = new Date(project.dueDate);
+      const end = project.dueDate
+        ? new Date(project.dueDate)
+        : dateRange.end; // assume runs until end of range
 
-      // overlap check
       return end >= dateRange.start && start <= dateRange.end;
     });
 
