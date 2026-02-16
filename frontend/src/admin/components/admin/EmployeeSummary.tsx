@@ -74,6 +74,13 @@ export function EmployeeSummary({
   const filteredProjects = useMemo(() => {
     return employeeProjects.filter(project => {
       const status = statuses.find(s => s.statusID === project.statusID);
+      
+      // Debug log to check status lookup
+      console.log("STATUS LOOKUP:",
+        project.statusID,
+        statuses.find(s => s.statusID === project.statusID)
+      );
+      
       const isCompleted = status?.statusName === 'Completed';
       
       // View mode filter - for historical, only show completed

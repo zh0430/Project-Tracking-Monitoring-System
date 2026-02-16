@@ -168,17 +168,21 @@ router.get("/projects/user/:userId", authenticate, authorizeAdmin, async (req, r
 
     const result = await pool.query(`
       SELECT
-        project_id AS "projectId",
-        title,
-        description,
-        status_id AS "statusID",
-        priority_id AS "priorityID",
-        assigned_to_user_id AS "assignedToUserID",
-        due_date AS "dueDate",
-        creation_date AS "createdDate"
-      FROM projects
-      WHERE assigned_to_user_id = $1
-      ORDER BY creation_date DESC
+        p.project_id AS "projectId",
+        p.title,
+        p.description,
+        t.status_id AS "statusID",
+        t.priority_id AS "priorityID",
+        p.created_at AS "createdDate",
+        p.due_date AS "dueDate",
+        p.documents,
+        p.timelines,
+        u.public_user_id AS "assignedToUserID"
+      FROM projects p
+      JOIN tasks t ON p.task_id = t.task_id
+      JOIN users u ON t.assigned_to_user_id = u.user_id
+      WHERE u.public_user_id = $1
+      ORDER BY p.created_at DESC
     `, [userId]);
 
     res.json(result.rows);
@@ -193,18 +197,20 @@ router.get("/projects", authenticate, authorizeAdmin, async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT
-        p.project_id AS "projectID",
+        p.project_id AS "projectId",
         p.title,
         p.description,
-        u.public_user_id AS "assignedToUserID",
-        p.status_id AS "statusID",
-        p.priority_id AS "priorityID",
-        p.creation_date AS "createdDate",
+        t.status_id AS "statusID",
+        t.priority_id AS "priorityID",
+        p.created_at AS "createdDate",
         p.due_date AS "dueDate",
-        p.completion_date AS "completedDate"
+        p.documents,
+        p.timelines,
+        u.public_user_id AS "assignedToUserID"
       FROM projects p
-      JOIN users u ON p.assigned_to_user_id = u.user_id
-      ORDER BY p.creation_date DESC
+      JOIN tasks t ON p.task_id = t.task_id
+      JOIN users u ON t.assigned_to_user_id = u.user_id
+      ORDER BY p.created_at DESC
     `);
 
     res.json(result.rows);
