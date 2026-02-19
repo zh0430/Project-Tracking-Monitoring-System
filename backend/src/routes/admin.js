@@ -169,6 +169,7 @@ router.get("/projects/user/:userId", authenticate, authorizeAdmin, async (req, r
     const result = await pool.query(`
       SELECT
         p.project_id AS "projectId",
+        p.task_id AS "taskId",
         p.title,
         p.description,
         t.status_id AS "statusID",
@@ -177,6 +178,7 @@ router.get("/projects/user/:userId", authenticate, authorizeAdmin, async (req, r
         p.due_date AS "dueDate",
         p.documents,
         p.timelines,
+        p.approval_status AS "approvalStatus",
         u.public_user_id AS "assignedToUserID"
       FROM projects p
       JOIN tasks t ON p.task_id = t.task_id
@@ -197,7 +199,9 @@ router.get("/projects", authenticate, authorizeAdmin, async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT
+        p.id,
         p.project_id AS "projectId",
+        p.task_id AS "taskId",
         p.title,
         p.description,
         t.status_id AS "statusID",
@@ -206,6 +210,7 @@ router.get("/projects", authenticate, authorizeAdmin, async (req, res) => {
         p.due_date AS "dueDate",
         p.documents,
         p.timelines,
+        p.approval_status AS "approvalStatus",
         u.public_user_id AS "assignedToUserID"
       FROM projects p
       JOIN tasks t ON p.task_id = t.task_id

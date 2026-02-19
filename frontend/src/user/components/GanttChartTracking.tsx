@@ -9,6 +9,7 @@ import autoTable from 'jspdf-autotable';
 import { domToPng } from 'modern-screenshot';
 import ExcelJS from 'exceljs';
 import { Document, Packer, Paragraph, ImageRun, Table, TableRow, TableCell, WidthType } from 'docx';
+import { getActiveProjects } from '../../shared/utils/projectHelpers';
 
 interface GanttChartTrackingProps {
   projects: Project[];
@@ -187,9 +188,10 @@ export function GanttChartTracking({
     return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
   };
 
-  // Filter projects - show only current user's projects
+  // Filter projects - show only current user's active projects
   const myProjects = useMemo(() => {
-    let filtered = [...projects];
+    // Start with active projects
+    let filtered = getActiveProjects(projects);
 
     // Apply project search filter if provided
     if (searchProjectId.trim()) {
@@ -471,7 +473,7 @@ export function GanttChartTracking({
             <div>
               <h2 className="text-gray-900">My Projects Gantt Chart {activeYear}</h2>
               <p className="text-gray-600 text-sm mt-1">
-                Track your project progress from {dateRange.start.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })} to {dateRange.end.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                Track your active project progress from {dateRange.start.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })} to {dateRange.end.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
               </p>
             </div>
           </div>
@@ -615,7 +617,7 @@ export function GanttChartTracking({
         {/* Summary Stats */}
         <div className="grid grid-cols-3 gap-4 pt-4 mt-4 border-t border-gray-300">
           <div className="text-center p-3 bg-gray-50 rounded-lg">
-            <p className="text-gray-600 text-sm">Total Projects</p>
+            <p className="text-gray-600 text-sm">Total Active Projects</p>
             <p className="text-gray-900 text-xl">{stats.total}</p>
           </div>
           <div className="text-center p-3 bg-red-50 rounded-lg">
@@ -689,7 +691,7 @@ export function GanttChartTracking({
                           </div>
                           <div className="flex-1">
                             <p className="text-gray-900">{currentEmployee.name}</p>
-                            <p className="text-gray-600 text-xs">{myProjects.length} project{myProjects.length !== 1 ? 's' : ''}</p>
+                            <p className="text-gray-600 text-xs">{myProjects.length} active project{myProjects.length !== 1 ? 's' : ''}</p>
                           </div>
                         </div>
                       </div>
@@ -826,11 +828,11 @@ export function GanttChartTracking({
               {myProjects.length === 0 && (
                 <div className="p-12 text-center text-gray-600">
                   <Calendar className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-                  <p className="text-gray-900 mb-1">No projects found</p>
+                  <p className="text-gray-900 mb-1">No active projects found</p>
                   <p className="text-sm">
                     {searchProjectId || fromMonth !== currentMonth || toMonth !== currentMonth
                       ? 'Try adjusting your search filters' 
-                      : 'You currently have no projects assigned to you in the selected date range'}
+                      : 'You currently have no active projects assigned to you in the selected date range'}
                   </p>
                   {hasActiveFilters && (
                     <button

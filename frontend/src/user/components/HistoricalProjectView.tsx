@@ -22,7 +22,11 @@ export function HistoricalProjectView({ projects, onBack }: HistoricalProjectVie
   const [showFilters, setShowFilters] = useState(false);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
 
-  const completedProjects = projects.filter((project) => project.status === 'Completed');
+  const completedProjects = projects.filter(
+    project =>
+      project.status === 'Completed' &&
+      project.approvalStatus === 'Approved'
+  );
 
   // Format date for display
   const formatDisplayDate = (dateString?: string) => {
@@ -109,6 +113,7 @@ export function HistoricalProjectView({ projects, onBack }: HistoricalProjectVie
       'Project Title': project.title,
       Description: project.description,
       Priority: project.priority || 'Not set',
+      'Approval Status': project.approvalStatus || 'Not set',
       'Completed Date': formatDisplayDate(project.createdAt),
       Effort: project.estimatedEffort || 'Not specified',
       Documents: project.documents?.length || 0,
@@ -135,6 +140,7 @@ export function HistoricalProjectView({ projects, onBack }: HistoricalProjectVie
         'Project ID',
         'Project Title',
         'Priority',
+        'Approval Status',
         'Completed Date',
         'Effort',
         'Docs',
@@ -143,6 +149,7 @@ export function HistoricalProjectView({ projects, onBack }: HistoricalProjectVie
         project.projectId,
         project.title,
         project.priority || 'Not set',
+        project.approvalStatus || 'Not set',
         formatDisplayDate(project.createdAt),
         project.estimatedEffort || 'Not specified',
         project.documents?.length || 0,
@@ -185,6 +192,9 @@ export function HistoricalProjectView({ projects, onBack }: HistoricalProjectVie
                       children: [new Paragraph('Priority')],
                     }),
                     new TableCell({
+                      children: [new Paragraph('Approval Status')],
+                    }),
+                    new TableCell({
                       children: [new Paragraph('Completed Date')],
                     }),
                     new TableCell({
@@ -206,6 +216,9 @@ export function HistoricalProjectView({ projects, onBack }: HistoricalProjectVie
                       }),
                       new TableCell({
                         children: [new Paragraph(project.priority || 'Not set')],
+                      }),
+                      new TableCell({
+                        children: [new Paragraph(project.approvalStatus || 'Not set')],
                       }),
                       new TableCell({
                         children: [new Paragraph(formatDisplayDate(project.createdAt))],
@@ -330,8 +343,8 @@ export function HistoricalProjectView({ projects, onBack }: HistoricalProjectVie
           <CheckCircle2 className="w-12 h-12 text-gray-300 mx-auto mb-4" />
           <p className="text-gray-500 mb-4">
             {hasActiveFilters
-              ? 'No completed projects match your filters'
-              : 'No completed projects yet'}
+              ? 'No approved completed projects match your filters'
+              : 'No approved completed projects yet'}
           </p>
           {hasActiveFilters && (
             <button
@@ -351,6 +364,7 @@ export function HistoricalProjectView({ projects, onBack }: HistoricalProjectVie
                 <th className="text-left px-6 py-3 text-gray-700">Project Title</th>
                 <th className="text-left px-6 py-3 text-gray-700">Description</th>
                 <th className="text-left px-6 py-3 text-gray-700">Priority</th>
+                <th className="text-left px-6 py-3 text-gray-700">Approval Status</th>
                 <th className="text-left px-6 py-3 text-gray-700">
                   Completed Date
                 </th>
@@ -371,6 +385,19 @@ export function HistoricalProjectView({ projects, onBack }: HistoricalProjectVie
                   <td className="px-6 py-4">
                     <span className={`${getPriorityColor(project.priority)}`}>
                       {project.priority || 'Not set'}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
+                      project.approvalStatus === 'Approved' 
+                        ? 'bg-green-100 text-green-800 border border-green-200'
+                        : project.approvalStatus === 'Pending'
+                        ? 'bg-yellow-100 text-yellow-800 border border-yellow-200'
+                        : project.approvalStatus === 'Rejected'
+                        ? 'bg-red-100 text-red-800 border border-red-200'
+                        : 'bg-gray-100 text-gray-800 border border-gray-200'
+                    }`}>
+                      {project.approvalStatus || 'Not set'}
                     </span>
                   </td>
                   <td className="px-6 py-4 text-gray-700">
@@ -408,7 +435,7 @@ export function HistoricalProjectView({ projects, onBack }: HistoricalProjectVie
           {/* Summary */}
           <div className="p-6 bg-gray-50 border-t border-gray-200">
             <p className="text-gray-700">
-              Total Completed Projects:{' '}
+              Total Approved Completed Projects:{' '}
               <span className="text-gray-900">{filteredProjects.length}</span>
               {hasActiveFilters && (
                 <span className="text-gray-500 ml-2">

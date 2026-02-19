@@ -10,6 +10,7 @@ router.get('/', async (req, res) => {
       SELECT
         p.id,
         p.project_id AS "projectId",
+        p.approval_status AS "approvalStatus",
         p.title,
         p.description,
         s.status_name AS "status",
@@ -95,8 +96,8 @@ router.post('/', authenticate, async (req, res) => {
       `INSERT INTO projects
       (project_id, title, description, priority,
        due_date, estimated_effort, documents,
-       timelines, task_id)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+       timelines, task_id, approval_status)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
       RETURNING *`,
       [
         'PRJ-' + Date.now(),
@@ -107,7 +108,8 @@ router.post('/', authenticate, async (req, res) => {
         estimatedEffort,
         JSON.stringify(documents),
         JSON.stringify(timelines),
-        newTaskId
+        newTaskId,
+        null // approval_status starts as null
       ]
     );
 
@@ -144,6 +146,12 @@ router.put('/:id', async (req, res) => {
 
     // normalize incoming values
     const normalizedStatus = normalize(status);
+    
+    // Set approval status if status is completed
+    let approvalStatus = null;
+    if (normalizedStatus === 'completed') {
+      approvalStatus = 'Pending';
+    }
     
     // Handle empty or missing priority values
     const safePriority = priority && priority.trim() !== ''
@@ -184,8 +192,9 @@ router.put('/:id', async (req, res) => {
         due_date=$3,
         estimated_effort=$4,
         documents=$5,
-        timelines=$6
-      WHERE id=$7
+        timelines=$6,
+        approval_status = COALESCE($7, approval_status)
+      WHERE id=$8
       RETURNING task_id`,
       [
         title,
@@ -194,6 +203,7 @@ router.put('/:id', async (req, res) => {
         estimatedEffort,
         JSON.stringify(documents),
         JSON.stringify(timelines),
+        approvalStatus,
         id
       ]
     );
@@ -222,6 +232,7 @@ router.put('/:id', async (req, res) => {
       SELECT
         p.id,
         p.project_id AS "projectId",
+        p.approval_status AS "approvalStatus",
         p.title,
         p.description,
         s.status_name AS "status",
@@ -246,6 +257,60 @@ router.put('/:id', async (req, res) => {
     await db.query('ROLLBACK');
     console.error('PUT project error:', err);
     res.status(500).json({ error: 'Failed to update project' });
+  }
+});
+
+// ADMIN APPROVE / REJECT PROJECT
+router.put('/:id/approval', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { action } = req.body; // "approve" or "reject"
+
+    await db.query('BEGIN');
+
+    if (action === 'approve') {
+      await db.query(
+        `UPDATE projects
+         SET approval_status = 'Approved'
+         WHERE id = $1`,
+        [id]
+      );
+    }
+
+    if (action === 'reject') {
+      // move back to Revision Required
+      const statusResult = await db.query(
+        `SELECT status_id FROM status
+         WHERE status_name = 'Revision Required'`
+      );
+
+      const revisionStatusId = statusResult.rows[0].status_id;
+
+      await db.query(
+        `UPDATE tasks
+         SET status_id = $1
+         WHERE task_id = (
+           SELECT task_id FROM projects WHERE id = $2
+         )`,
+        [revisionStatusId, id]
+      );
+
+      await db.query(
+        `UPDATE projects
+         SET approval_status = 'Rejected'
+         WHERE id = $1`,
+        [id]
+      );
+    }
+
+    await db.query('COMMIT');
+
+    res.json({ success: true });
+
+  } catch (err) {
+    await db.query('ROLLBACK');
+    console.error('Approval error:', err);
+    res.status(500).json({ error: 'Failed to update approval status' });
   }
 });
 

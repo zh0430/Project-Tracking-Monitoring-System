@@ -39,6 +39,10 @@ export function ProjectDetailModal({
   onDeleteProject,
   readOnly = false,
 }: ProjectDetailModalProps) {
+  const isLocked =
+    project.status === 'Completed' &&
+    project.approvalStatus === 'Approved';
+
   const [isEditing, setIsEditing] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [formData, setFormData] = useState({
@@ -188,6 +192,13 @@ export function ProjectDetailModal({
             </button>
           </div>
 
+          {/* Locked Message */}
+          {isLocked && (
+            <div className="mx-6 mt-6 p-4 bg-green-100 text-green-800 rounded border border-green-200">
+              This project is approved and locked from editing.
+            </div>
+          )}
+
           {/* Content */}
           <div className="p-6 space-y-6">
             {/* Project ID */}
@@ -199,7 +210,7 @@ export function ProjectDetailModal({
             {/* Project Title */}
             <div>
               <label className="block text-gray-700 mb-2">Project Title</label>
-              {isEditing && !readOnly ? (
+              {isEditing && !readOnly && !isLocked ? (
                 <input
                   type="text"
                   value={formData.title}
@@ -216,7 +227,7 @@ export function ProjectDetailModal({
             {/* Description */}
             <div>
               <label className="block text-gray-700 mb-2">Description</label>
-              {isEditing && !readOnly ? (
+              {isEditing && !readOnly && !isLocked ? (
                 <textarea
                   value={formData.description}
                   onChange={(e) =>
@@ -232,7 +243,7 @@ export function ProjectDetailModal({
             {/* Priority */}
             <div>
               <label className="block text-gray-700 mb-2">Priority</label>
-              {isEditing && !readOnly ? (
+              {isEditing && !readOnly && !isLocked ? (
                 <select
                   value={formData.priority}
                   onChange={(e) =>
@@ -253,7 +264,7 @@ export function ProjectDetailModal({
             {/* Due Date */}
             <div>
               <label className="block text-gray-700 mb-2">Due Date</label>
-              {isEditing && !readOnly ? (
+              {isEditing && !readOnly && !isLocked ? (
                 <input
                   type="datetime-local"
                   value={formData.dueDate}
@@ -270,7 +281,7 @@ export function ProjectDetailModal({
             {/* Estimated Effort */}
             <div>
               <label className="block text-gray-700 mb-2">Estimated Effort</label>
-              {isEditing && !readOnly ? (
+              {isEditing && !readOnly && !isLocked ? (
                 <input
                   type="text"
                   value={formData.estimatedEffort}
@@ -290,7 +301,7 @@ export function ProjectDetailModal({
             {/* Status */}
             <div>
               <label className="block text-gray-700 mb-2">Status</label>
-              {isEditing && !readOnly ? (
+              {isEditing && !readOnly && !isLocked ? (
                 <select
                   value={formData.status}
                   onChange={(e) =>
@@ -321,7 +332,7 @@ export function ProjectDetailModal({
             <div className="border-t border-gray-200 pt-6">
               <div className="flex items-center justify-between mb-4">
                 <h4 className="text-gray-900">Project Progress Timeline</h4>
-                {isEditing && !readOnly && (
+                {isEditing && !readOnly && !isLocked && (
                   <button
                     onClick={() => setShowAddTimeline(!showAddTimeline)}
                     className="flex items-center gap-2 px-4 py-2 bg-gray-800 text-white rounded hover:bg-gray-900 transition-colors"
@@ -333,7 +344,7 @@ export function ProjectDetailModal({
               </div>
 
               {/* Add Timeline Form */}
-              {showAddTimeline && isEditing && !readOnly && (
+              {showAddTimeline && isEditing && !readOnly && !isLocked && (
                 <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="col-span-2">
@@ -458,7 +469,7 @@ export function ProjectDetailModal({
                     >
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
-                          {isEditing && !readOnly ? (
+                          {isEditing && !readOnly && !isLocked ? (
                             <input
                               type="text"
                               value={timeline.title}
@@ -474,7 +485,7 @@ export function ProjectDetailModal({
                           {/* Priority Display */}
                           <div className="mb-2">
                             <span className="text-gray-600 text-sm">Priority: </span>
-                            {isEditing && !readOnly ? (
+                            {isEditing && !readOnly && !isLocked ? (
                               <select
                                 value={timeline.priority || ''}
                                 onChange={(e) =>
@@ -503,10 +514,10 @@ export function ProjectDetailModal({
                           </div>
 
                           {/* Description Display */}
-                          {(timeline.description || (isEditing && !readOnly)) && (
+                          {(timeline.description || (isEditing && !readOnly && !isLocked)) && (
                             <div className="mb-2">
                               <span className="text-gray-600 text-sm">Description: </span>
-                              {isEditing && !readOnly ? (
+                              {isEditing && !readOnly && !isLocked ? (
                                 <textarea
                                   value={timeline.description || ''}
                                   onChange={(e) =>
@@ -523,7 +534,7 @@ export function ProjectDetailModal({
                           <div className="grid grid-cols-3 gap-4 text-sm">
                             <div>
                               <span className="text-gray-600">Start: </span>
-                              {isEditing && !readOnly ? (
+                              {isEditing && !readOnly && !isLocked ? (
                                 <input
                                   type="date"
                                   value={timeline.startDate}
@@ -538,7 +549,7 @@ export function ProjectDetailModal({
                             </div>
                             <div>
                               <span className="text-gray-600">End: </span>
-                              {isEditing && !readOnly ? (
+                              {isEditing && !readOnly && !isLocked ? (
                                 <input
                                   type="date"
                                   value={timeline.endDate}
@@ -552,7 +563,7 @@ export function ProjectDetailModal({
                               )}
                             </div>
                             <div>
-                              {isEditing && !readOnly ? (
+                              {isEditing && !readOnly && !isLocked ? (
                                 <select
                                   value={timeline.status}
                                   onChange={(e) =>
@@ -575,7 +586,7 @@ export function ProjectDetailModal({
                             </div>
                           </div>
                         </div>
-                        {isEditing && !readOnly && (
+                        {isEditing && !readOnly && !isLocked && (
                           <button
                             onClick={() => handleDeleteTimeline(timeline.id)}
                             className="ml-4 p-2 text-red-600 hover:text-red-700 transition-colors"
@@ -594,7 +605,7 @@ export function ProjectDetailModal({
             <div className="border-t border-gray-200 pt-6">
               <div className="flex items-center justify-between mb-4">
                 <label className="block text-gray-900">Documents</label>
-                {isEditing && !readOnly && (
+                {isEditing && !readOnly && !isLocked && (
                   <label className="flex items-center gap-2 px-4 py-2 bg-gray-800 text-white rounded hover:bg-gray-900 transition-colors cursor-pointer">
                     <Upload className="w-4 h-4" />
                     Upload Files
@@ -638,7 +649,7 @@ export function ProjectDetailModal({
                         >
                           <Download className="w-4 h-4" />
                         </a>
-                        {isEditing && !readOnly && (
+                        {isEditing && !readOnly && !isLocked && (
                           <button
                             onClick={() => handleDeleteDocument(doc.id)}
                             className="p-2 text-red-600 hover:text-red-700 transition-colors"
@@ -656,7 +667,7 @@ export function ProjectDetailModal({
 
           {/* Actions */}
           <div className="flex items-center justify-between p-6 border-t border-gray-200 bg-gray-50 sticky bottom-0">
-            {!readOnly && project.status !== 'Completed' && (
+            {!readOnly && project.status !== 'Completed' && !isLocked && (
               <button
                 onClick={() => setShowDeleteConfirm(true)}
                 className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
@@ -666,7 +677,7 @@ export function ProjectDetailModal({
             )}
             {readOnly && <div></div>}
             <div className="flex gap-3">
-              {isEditing && !readOnly ? (
+              {isEditing && !readOnly && !isLocked ? (
                 <>
                   <button
                     onClick={() => {
@@ -701,7 +712,7 @@ export function ProjectDetailModal({
                   >
                     Close
                   </button>
-                  {!readOnly && (
+                  {!readOnly && !isLocked && (
                     <button
                       onClick={() => setIsEditing(true)}
                       className="px-6 py-2 bg-gray-800 text-white rounded hover:bg-gray-900 transition-colors"

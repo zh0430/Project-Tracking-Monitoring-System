@@ -8,6 +8,7 @@ import {
   exportProjectsPDF,
   exportProjectsWord
 } from '../../shared/utils/userExport';
+import { getActiveProjects } from '../../shared/utils/projectHelpers';
 
 interface ManageProjectProps {
   projects: Project[];
@@ -83,7 +84,8 @@ export function ManageProject({
     }
   };
 
-  const activeProjects = projects.filter((project) => project.status !== 'Completed');
+  // Get active projects using the helper function
+  const activeProjects = getActiveProjects(projects);
 
   // Apply filters
   const filteredProjects = activeProjects.filter((project) => {
@@ -314,7 +316,7 @@ export function ManageProject({
                       </div>
                     </td>
                     <td className="px-6 py-4 align-top">
-                      <div className="flex items-start">
+                      <div className="flex flex-col gap-2">
                         <span
                           className={`inline-flex items-center justify-center px-3 py-1 rounded text-sm ${getStatusColor(
                             project.status
@@ -322,6 +324,11 @@ export function ManageProject({
                         >
                           {project.status}
                         </span>
+                        {project.status === 'Completed' && project.approvalStatus === 'Pending' && (
+                          <span className="inline-flex items-center justify-center px-3 py-1 rounded text-sm bg-yellow-100 text-yellow-800 border border-yellow-200">
+                            Waiting for Admin Approval
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td className="px-6 py-4 align-top">

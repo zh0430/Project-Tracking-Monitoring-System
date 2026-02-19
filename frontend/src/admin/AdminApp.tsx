@@ -7,7 +7,7 @@ import { AdminSettings } from './components/admin/AdminSettings';
 import { TeamGanttChart } from './components/admin/TeamGanttChart';
 import { Sidebar } from './components/admin/Sidebar';
 import { AdminHeader } from "./components/admin/AdminHeader";
-import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
+import { Routes, Route, Navigate, useNavigate, useParams } from "react-router-dom";
 
 export interface Role {
   roleID: string;
@@ -58,6 +58,7 @@ export interface Task {
 
 export interface Project {
   projectId: string;
+  taskId: string;  // Link to the associated task
   title: string;
   description: string;
   assignedToUserID: string;
@@ -67,6 +68,7 @@ export interface Project {
   dueDate: string;
   completedDate: string | null;
   documents: TaskDocument[];
+  approvalStatus?: string; // Pending, Approved, Rejected
 }
 
 export interface TaskDocument {
@@ -269,10 +271,11 @@ export default function AdminApp() {
             }))
           );
 
-          // Transform projects data
+          // Transform projects data with correct field mapping
           setProjects(
             (projectsData || []).map((p: any) => ({
-              projectId: String(p.projectID || p.projectId),
+              projectId: String(p.projectId),
+              taskId: String(p.taskId),   // ✅ FIXED - matches API response
               title: p.title,
               description: p.description || "",
               assignedToUserID: String(p.assignedToUserID),
@@ -282,6 +285,7 @@ export default function AdminApp() {
               dueDate: p.dueDate,
               completedDate: p.completedDate,
               documents: p.documents || [],
+              approvalStatus: p.approvalStatus || null,
             }))
           );
 
@@ -421,23 +425,64 @@ export default function AdminApp() {
   const handleAddTask = async (task: Task) => {
     try {
       const token = localStorage.getItem("token");
-      const response = await fetch("http://localhost:5000/api/admin/tasks", {
+      const response = await fetch("http://localhost:5000/api/projects", {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
         credentials: "include",
-        body: JSON.stringify(task),
+        body: JSON.stringify({
+          title: task.title,
+          description: task.description,
+          priority: priorities.find(p => p.priorityID === task.priorityID)?.priorityLevel,
+          dueDate: task.dueDate,
+          estimatedEffort: 0,
+          assignedUserId: task.assignedToUserID,
+          documents: task.documents,
+          timelines: []
+        }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to add task');
+        throw new Error('Failed to add project');
       }
 
-      const newTask = await response.json();
-      setTasks([...tasks, newTask]);
+      const newProject = await response.json();
       
+      // 🔥 REFRESH PROJECTS AFTER ADDING TASK
+      const projectsResponse = await fetch("http://localhost:5000/api/projects", {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        credentials: "include",
+      });
+
+      if (projectsResponse.ok) {
+        const updatedProjects = await projectsResponse.json();
+
+        setProjects(
+          (updatedProjects || []).map((p: any) => ({
+            projectId: String(p.projectId),
+            taskId: String(p.taskId),
+            title: p.title,
+            description: p.description || "",
+            assignedToUserID: String(p.assignedToUserID),
+            statusID: String(p.statusID),
+            priorityID: String(p.priorityID),
+            createdDate: p.createdDate,
+            dueDate: p.dueDate,
+            completedDate: p.completedDate,
+            documents: p.documents || [],
+            approvalStatus: p.approvalStatus || null,
+          }))
+        );
+      }
+      
+      // Commented out notifications for now
+      /*
       // Create notifications for assigned employees
       const assignedUserIDs = Array.isArray(task.assignedToUserID) 
         ? task.assignedToUserID 
@@ -455,7 +500,7 @@ export default function AdminApp() {
             body: JSON.stringify({
               userID,
               message: `New project assigned: ${task.title}`,
-              taskID: newTask.taskID,
+              taskID: newProject.taskId,
             }),
           })
         )
@@ -472,8 +517,9 @@ export default function AdminApp() {
       });
       const updatedNotifications = await notificationsResponse.json();
       setNotifications(updatedNotifications || []);
+      */
     } catch (error) {
-      console.error('Error adding task:', error);
+      console.error('Error adding project:', error);
     }
   };
 
@@ -501,25 +547,28 @@ export default function AdminApp() {
     }
   };
 
-  const handleDeleteTask = async (taskId: string) => {
+  const handleDeleteProject = async (projectId: string) => {
     try {
       const token = localStorage.getItem("token");
-      const response = await fetch(`http://localhost:5000/api/admin/tasks/${taskId}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        credentials: "include",
-      });
 
-      if (!response.ok) {
-        throw new Error('Failed to delete task');
-      }
+      const response = await fetch(
+        `http://localhost:5000/api/projects/${projectId}`,
+        {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          credentials: "include",
+        }
+      );
 
-      setTasks(tasks.filter(t => t.taskID !== taskId));
+      if (!response.ok) throw new Error("Failed to delete project");
+
+      setProjects(projects.filter(p => p.projectId !== projectId));
+
     } catch (error) {
-      console.error('Error deleting task:', error);
+      console.error("Delete error:", error);
     }
   };
 
@@ -528,6 +577,28 @@ export default function AdminApp() {
     localStorage.removeItem("user");
     localStorage.removeItem("adminSystemData");
     navigate("/");
+  };
+
+  // Wrapper component for UpdateStatusPriority to handle task lookup
+  const UpdateTaskWrapper = () => {
+    const { taskId } = useParams();
+
+    const task = tasks.find(t => t.taskID === taskId);
+
+    if (!task) {
+      return <div>Task not found</div>;
+    }
+
+    return (
+      <UpdateStatusPriority
+        task={task}
+        statuses={statuses}
+        priorities={priorities}
+        employees={employees}
+        onUpdate={handleUpdateTask}
+        onCancel={() => navigate(-1)}
+      />
+    );
   };
 
   // Check authentication
@@ -619,7 +690,7 @@ export default function AdminApp() {
                   priorities={priorities}
                   roles={roles}
                   onApproveUpdate={handleApproveUpdate}
-                  onDeleteProject={handleDeleteTask}
+                  onDeleteProject={handleDeleteProject}
                   onUpdateProject={handleUpdateTask}
                   currentUserId={admin.adminID}
                 />
@@ -636,7 +707,7 @@ export default function AdminApp() {
                   priorities={priorities}
                   roles={roles}
                   onApproveUpdate={handleApproveUpdate}
-                  onDeleteProject={handleDeleteTask}
+                  onDeleteProject={handleDeleteProject}
                   onUpdateProject={handleUpdateTask}
                   currentUserId={admin.adminID}
                 />
@@ -645,16 +716,7 @@ export default function AdminApp() {
 
             <Route
               path="update/:taskId"
-              element={
-                <UpdateStatusPriority
-                  tasks={tasks}
-                  statuses={statuses}
-                  priorities={priorities}
-                  employees={employees}
-                  onUpdate={handleUpdateTask}
-                  onCancel={() => navigate(-1)}
-                />
-              }
+              element={<UpdateTaskWrapper />}
             />
 
             <Route

@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Project, Employee, Status, Priority, Role, TaskDocument } from '../../App';
-import { Calendar, Clock, Filter, Download, Trash2, Eye, Upload, FileText, X } from 'lucide-react';
+import { Calendar, Clock, Filter, Download, Trash2, Eye, Upload, FileText, X, CheckCircle, XCircle } from 'lucide-react';
 import { DocumentManager } from './DocumentManager';
 import { exportEmployeeTasksToExcel } from '../../utils/excelExport';
 import { ProjectGanttChart } from './ProjectGanttChart';
@@ -34,7 +34,8 @@ export function EmployeeSummary({
   
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterPriority, setFilterPriority] = useState<string>('all');
-  const [filterDueDate, setFilterDueDate] = useState<string>('');
+  const [filterStartDate, setFilterStartDate] = useState<string>('');
+  const [filterEndDate, setFilterEndDate] = useState<string>('');
   const [filterSearchText, setFilterSearchText] = useState<string>('');
   const [viewMode, setViewMode] = useState<'active' | 'historical'>('active');
   const [selectedProjectDetails, setSelectedProjectDetails] = useState<Project | null>(null);
@@ -83,9 +84,12 @@ export function EmployeeSummary({
       
       const isCompleted = status?.statusName === 'Completed';
       
-      // View mode filter - for historical, only show completed
-      if (viewMode === 'historical' && !isCompleted) return false;
-      // For active mode, show all projects (including completed)
+      // View mode filter - for historical, only show completed AND approved
+      if (viewMode === 'historical') {
+        if (!isCompleted) return false;
+        if (project.approvalStatus !== 'Approved') return false;
+      }
+      // For active mode, show all projects except completed AND approved
       
       // Search text filter (project ID or title)
       if (filterSearchText) {
@@ -95,8 +99,24 @@ export function EmployeeSummary({
         if (!matchesId && !matchesTitle) return false;
       }
       
-      // Due date filter
-      if (filterDueDate && project.dueDate !== filterDueDate) return false;
+      // Date range filter
+      if (project.dueDate) {
+        const due = new Date(project.dueDate);
+
+        if (filterStartDate) {
+          const start = new Date(filterStartDate);
+          if (due < start) return false;
+        }
+
+        if (filterEndDate) {
+          const end = new Date(filterEndDate);
+          end.setHours(23, 59, 59, 999);
+          if (due > end) return false;
+        }
+      } else if (filterStartDate || filterEndDate) {
+        // If project has no due date but date filters are active, exclude it
+        return false;
+      }
       
       // Status filter
       if (filterStatus !== 'all' && project.statusID !== filterStatus) return false;
@@ -106,7 +126,7 @@ export function EmployeeSummary({
       
       return true;
     });
-  }, [employeeProjects, viewMode, filterSearchText, filterDueDate, filterStatus, filterPriority, statuses]);
+  }, [employeeProjects, viewMode, filterSearchText, filterStartDate, filterEndDate, filterStatus, filterPriority, statuses]);
 
   const toDoProjects = useMemo(() => {
     return filteredProjects.filter(p => {
@@ -167,6 +187,16 @@ export function EmployeeSummary({
   const handleEmployeeChange = (newEmployeeId: string) => {
     navigate(`/admin/summary/${newEmployeeId}`);
   };
+
+  const resetFilters = () => {
+    setFilterStatus('all');
+    setFilterPriority('all');
+    setFilterStartDate('');
+    setFilterEndDate('');
+    setFilterSearchText('');
+  };
+
+  const hasActiveFilters = filterStatus !== 'all' || filterPriority !== 'all' || filterStartDate || filterEndDate || filterSearchText;
 
   return (
     <div className="space-y-6">
@@ -243,9 +273,17 @@ export function EmployeeSummary({
             />
             <input
               type="date"
-              value={filterDueDate}
-              onChange={e => setFilterDueDate(e.target.value)}
-              placeholder="Filter by Due Date"
+              value={filterStartDate}
+              onChange={e => setFilterStartDate(e.target.value)}
+              placeholder="Start Date"
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+            />
+            <span className="text-gray-500">to</span>
+            <input
+              type="date"
+              value={filterEndDate}
+              onChange={e => setFilterEndDate(e.target.value)}
+              placeholder="End Date"
               className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
             />
           </div>
@@ -275,6 +313,14 @@ export function EmployeeSummary({
                 </option>
               ))}
             </select>
+            {hasActiveFilters && (
+              <button
+                onClick={resetFilters}
+                className="text-red-600 hover:text-red-700 transition-colors text-sm"
+              >
+                Clear Filters
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -395,15 +441,15 @@ export function EmployeeSummary({
       {viewMode === 'historical' && (
         <div className="bg-white rounded-lg border border-gray-300">
           <div className="p-6 border-b border-gray-300">
-            <h3 className="text-gray-900">Completed Projects History</h3>
+            <h3 className="text-gray-900">Completed & Approved Projects History</h3>
             <p className="text-gray-600 text-sm mt-1">
-              Total completed: {completedProjects.length} projects
+              Total completed and approved: {completedProjects.length} projects
             </p>
           </div>
           <div className="divide-y divide-gray-300">
             {completedProjects.length === 0 ? (
               <div className="p-8 text-center text-gray-500">
-                No completed projects found
+                No completed and approved projects found
               </div>
             ) : (
               completedProjects.map(project => {
@@ -424,6 +470,9 @@ export function EmployeeSummary({
                               : 'bg-gray-100 text-gray-600 border-gray-300'
                           }`}>
                             {priority?.priorityLevel}
+                          </span>
+                          <span className="inline-flex items-center px-2 py-1 rounded text-xs bg-green-100 text-green-800 border border-green-200">
+                            Approved
                           </span>
                         </div>
                       </div>
@@ -475,6 +524,7 @@ interface ProjectCardProps {
 }
 
 function ProjectCard({ project, priorities, statuses, employees, onApproveUpdate, onDelete }: ProjectCardProps) {
+  const navigate = useNavigate();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const priority = priorities.find(p => p.priorityID === project.priorityID);
   const status = statuses.find(s => s.statusID === project.statusID);
@@ -490,6 +540,8 @@ function ProjectCard({ project, priorities, statuses, employees, onApproveUpdate
     setShowDeleteConfirm(false);
   };
 
+  const isPendingApproval = status?.statusName === 'Completed' && project.approvalStatus === 'Pending';
+
   return (
     <div className="bg-white p-4 rounded-lg border border-gray-300 hover:shadow-md transition-shadow">
       <h4 className="text-gray-900 mb-2">{project.title}</h4>
@@ -502,6 +554,11 @@ function ProjectCard({ project, priorities, statuses, employees, onApproveUpdate
           }`}>
             {priority?.priorityLevel}
           </div>
+          {isPendingApproval && (
+            <span className="inline-flex items-center px-2 py-1 rounded text-xs bg-yellow-100 text-yellow-800 border border-yellow-200">
+              Pending Approval
+            </span>
+          )}
         </div>
 
         <div className="space-y-1 text-sm text-gray-600">
@@ -519,19 +576,40 @@ function ProjectCard({ project, priorities, statuses, employees, onApproveUpdate
       </div>
 
       <div className="flex gap-2 mt-4">
-        <button
-          onClick={() => onApproveUpdate(project.projectId)}
-          className="flex-1 px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm"
-        >
-          Update
-        </button>
-        <button
-          onClick={() => setShowDeleteConfirm(true)}
-          className="px-3 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm"
-          title="Delete Project"
-        >
-          <Trash2 className="w-4 h-4" />
-        </button>
+        {isPendingApproval ? (
+          <>
+            <button
+              onClick={() => onApproveUpdate(project.projectId)}
+              className="flex-1 px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm flex items-center justify-center gap-2"
+            >
+              <CheckCircle className="w-4 h-4" />
+              Approve
+            </button>
+            <button
+              onClick={() => onApproveUpdate(project.projectId)}
+              className="flex-1 px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm flex items-center justify-center gap-2"
+            >
+              <XCircle className="w-4 h-4" />
+              Reject
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              onClick={() => navigate(`/admin/update/${project.taskId}`)}
+              className="flex-1 px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm"
+            >
+              Update
+            </button>
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              className="px-3 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm"
+              title="Delete Project"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </>
+        )}
       </div>
 
       {/* Delete Confirmation */}
@@ -619,6 +697,20 @@ function ProjectDetailsModal({ project, priorities, employees, onClose }: Projec
             <div>
               <p className="text-gray-600 text-sm mb-1">Completed Date</p>
               <p className="text-gray-900">{project.completedDate || 'N/A'}</p>
+            </div>
+            <div>
+              <p className="text-gray-600 text-sm mb-1">Approval Status</p>
+              <span className={`inline-flex items-center px-3 py-1 rounded border ${
+                project.approvalStatus === 'Approved'
+                  ? 'bg-green-100 text-green-800 border-green-200'
+                  : project.approvalStatus === 'Pending'
+                  ? 'bg-yellow-100 text-yellow-800 border-yellow-200'
+                  : project.approvalStatus === 'Rejected'
+                  ? 'bg-red-100 text-red-800 border-red-200'
+                  : 'bg-gray-100 text-gray-600 border-gray-300'
+              }`}>
+                {project.approvalStatus || 'Not set'}
+              </span>
             </div>
           </div>
 
