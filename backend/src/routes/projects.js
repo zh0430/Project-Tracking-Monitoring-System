@@ -315,17 +315,15 @@ router.put('/:id/approval', async (req, res) => {
 });
 
 // DELETE project
-router.delete('/:id', async (req, res) => {
+router.delete('/:projectId', async (req, res) => {
   try {
-    const { id } = req.params;
+    const { projectId } = req.params;
 
-    // Start a transaction
     await db.query('BEGIN');
 
-    // Get the task_id before deleting the project
     const projectResult = await db.query(
-      `SELECT task_id FROM projects WHERE id = $1`,
-      [id]
+      `SELECT task_id FROM projects WHERE project_id = $1`,
+      [projectId]
     );
 
     if (projectResult.rows.length === 0) {
@@ -335,24 +333,20 @@ router.delete('/:id', async (req, res) => {
 
     const taskId = projectResult.rows[0].task_id;
 
-    // Delete the project
     await db.query(
-      `DELETE FROM projects WHERE id=$1`,
-      [id]
+      `DELETE FROM projects WHERE project_id = $1`,
+      [projectId]
     );
 
-    // Delete the associated task
     await db.query(
-      `DELETE FROM tasks WHERE task_id=$1`,
+      `DELETE FROM tasks WHERE task_id = $1`,
       [taskId]
     );
 
-    // Commit the transaction
     await db.query('COMMIT');
 
     res.json({ success: true });
   } catch (err) {
-    // Rollback in case of error
     await db.query('ROLLBACK');
     console.error('DELETE project error:', err);
     res.status(500).json({ error: 'Failed to delete project' });

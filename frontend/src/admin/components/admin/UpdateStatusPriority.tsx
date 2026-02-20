@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { Task, Status, Priority, Employee, TaskDocument, ProjectTimeline } from '../../App';
+import { Task, Status, Priority, Employee, TaskDocument, ProjectTimeline, Project } from '../../App';
 import { ArrowLeft, Plus, Trash2, Calendar } from 'lucide-react';
 import { DocumentManager } from './DocumentManager';
 
 interface UpdateStatusPriorityProps {
   task: Task;
+  project: Project;
   statuses: Status[];
   priorities: Priority[];
   employees: Employee[];
@@ -14,15 +15,17 @@ interface UpdateStatusPriorityProps {
 
 export function UpdateStatusPriority({
   task,
+  project,
   statuses,
   priorities,
   employees,
   onUpdate,
   onCancel,
 }: UpdateStatusPriorityProps) {
-  const [updatedTask, setUpdatedTask] = useState<Task>({ 
+  const [updatedTask, setUpdatedTask] = useState<Task>({
     ...task,
-    timeline: task.timeline || []
+    documents: project.documents || [],
+    timeline: project.timelines || []
   });
   const [approved, setApproved] = useState(false);
   const [showAddMilestone, setShowAddMilestone] = useState(false);
@@ -172,11 +175,11 @@ export function UpdateStatusPriority({
         </div>
 
         {/* Show existing documents uploaded by user */}
-        {task.documents.length > 0 && (
+        {project.documents && project.documents.length > 0 && (
           <div className="mt-6 pt-6 border-t border-gray-300">
             <h4 className="text-gray-900 mb-3">Documents Uploaded by User</h4>
             <DocumentManager
-              documents={task.documents}
+              documents={project.documents}
               onUpload={() => {}}
               onDelete={() => {}}
               currentUserId="admin1"
@@ -449,6 +452,7 @@ export function UpdateStatusPriority({
               onDelete={handleDeleteDocument}
               currentUserId="admin1"
               canUpload={true}
+              employees={employees}
             />
           </div>
         </>

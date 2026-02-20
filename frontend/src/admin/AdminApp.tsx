@@ -57,8 +57,9 @@ export interface Task {
 }
 
 export interface Project {
+  id: number;                    // ✅ ADD THIS
   projectId: string;
-  taskId: string;  // Link to the associated task
+  taskId: string;                // Link to the associated task
   title: string;
   description: string;
   assignedToUserID: string;
@@ -68,7 +69,7 @@ export interface Project {
   dueDate: string;
   completedDate: string | null;
   documents: TaskDocument[];
-  approvalStatus?: string; // Pending, Approved, Rejected
+  approvalStatus?: string;       // Pending, Approved, Rejected
 }
 
 export interface TaskDocument {
@@ -274,8 +275,9 @@ export default function AdminApp() {
           // Transform projects data with correct field mapping
           setProjects(
             (projectsData || []).map((p: any) => ({
+              id: p.id,                         // ✅ ADD
               projectId: String(p.projectId),
-              taskId: String(p.taskId),   // ✅ FIXED - matches API response
+              taskId: String(p.taskId),
               title: p.title,
               description: p.description || "",
               assignedToUserID: String(p.assignedToUserID),
@@ -333,34 +335,96 @@ export default function AdminApp() {
     navigate(`/admin/update/${taskId}`);
   };
 
-  const handleUpdateTask = async (updatedTask: Task) => {
+  const handleUpdateTask = async (updatedTask: Task, projectId: number) => {
     try {
       const token = localStorage.getItem("token");
-      const response = await fetch(`http://localhost:5000/api/admin/tasks/${updatedTask.taskID}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        credentials: "include",
-        body: JSON.stringify(updatedTask),
-      });
+      
+      const statusObj = statuses.find(s => s.statusID === updatedTask.statusID);
+      const priorityObj = priorities.find(p => p.priorityID === updatedTask.priorityID);
+
+      const payload = {
+        title: updatedTask.title,
+        description: updatedTask.description,
+        status: statusObj?.statusName,
+        priority: priorityObj?.priorityLevel,
+        dueDate: updatedTask.dueDate,
+        estimatedEffort: 0,
+        documents: updatedTask.documents || [],
+        timelines: updatedTask.timeline || []
+      };
+
+      const response = await fetch(
+        `http://localhost:5000/api/projects/${projectId}`,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          credentials: "include",
+          body: JSON.stringify(payload),
+        }
+      );
 
       if (!response.ok) {
         throw new Error('Failed to update task');
       }
 
-      const updatedTaskData = await response.json();
+      const updatedProjectData = await response.json();
       
-      // Update local state
-      setTasks(tasks.map(t => t.taskID === updatedTaskData.taskID ? updatedTaskData : t));
+      // Refresh projects after update
+      const projectsResponse = await fetch("http://localhost:5000/api/admin/projects", {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        credentials: "include",
+      });
+
+      if (projectsResponse.ok) {
+        const updatedProjects = await projectsResponse.json();
+
+        setProjects(
+          (updatedProjects || []).map((p: any) => ({
+            id: p.id,
+            projectId: String(p.projectId),
+            taskId: String(p.taskId),
+            title: p.title,
+            description: p.description || "",
+            assignedToUserID: String(p.assignedToUserID),
+            statusID: String(p.statusID),
+            priorityID: String(p.priorityID),
+            createdDate: p.createdDate,
+            dueDate: p.dueDate,
+            completedDate: p.completedDate,
+            documents: p.documents || [],
+            approvalStatus: p.approvalStatus || null,
+          }))
+        );
+      }
+
+      // Refresh tasks after update
+      const tasksResponse = await fetch("http://localhost:5000/api/admin/tasks", {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        credentials: "include",
+      });
+
+      if (tasksResponse.ok) {
+        const updatedTasks = await tasksResponse.json();
+        setTasks(updatedTasks);
+      }
       
       // If status changed to "Revision Required", send notifications
       const oldTask = tasks.find(t => t.taskID === updatedTask.taskID);
-      if (oldTask && oldTask.statusID !== updatedTaskData.statusID && updatedTaskData.statusID === '4') {
-        const assignedUserIDs = Array.isArray(updatedTaskData.assignedToUserID) 
-          ? updatedTaskData.assignedToUserID 
-          : [updatedTaskData.assignedToUserID];
+      if (oldTask && oldTask.statusID !== updatedTask.statusID && updatedTask.statusID === '4') {
+        const assignedUserIDs = Array.isArray(updatedTask.assignedToUserID) 
+          ? updatedTask.assignedToUserID 
+          : [updatedTask.assignedToUserID];
         
         // Create notifications via API
         await Promise.all(
@@ -374,8 +438,8 @@ export default function AdminApp() {
               credentials: "include",
               body: JSON.stringify({
                 userID,
-                message: `Project requires revision: ${updatedTaskData.title}`,
-                taskID: updatedTaskData.taskID,
+                message: `Project requires revision: ${updatedTask.title}`,
+                taskID: updatedTask.taskID,
               }),
             })
           )
@@ -392,6 +456,11 @@ export default function AdminApp() {
         });
         const newNotifications = await notificationsResponse.json();
         setNotifications(newNotifications || []);
+      }
+
+      // Navigate back to employee summary
+      if (updatedTask.assignedToUserID) {
+        navigate(`/admin/summary/${updatedTask.assignedToUserID}`);
       }
     } catch (error) {
       console.error('Error updating task:', error);
@@ -451,7 +520,7 @@ export default function AdminApp() {
       const newProject = await response.json();
       
       // 🔥 REFRESH PROJECTS AFTER ADDING TASK
-      const projectsResponse = await fetch("http://localhost:5000/api/projects", {
+      const projectsResponse = await fetch("http://localhost:5000/api/admin/projects", {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -465,6 +534,7 @@ export default function AdminApp() {
 
         setProjects(
           (updatedProjects || []).map((p: any) => ({
+            id: p.id,
             projectId: String(p.projectId),
             taskId: String(p.taskId),
             title: p.title,
@@ -479,6 +549,21 @@ export default function AdminApp() {
             approvalStatus: p.approvalStatus || null,
           }))
         );
+      }
+      
+      // Refresh tasks after adding project
+      const tasksResponse = await fetch("http://localhost:5000/api/admin/tasks", {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        credentials: "include",
+      });
+
+      if (tasksResponse.ok) {
+        const updatedTasks = await tasksResponse.json();
+        setTasks(updatedTasks);
       }
       
       // Commented out notifications for now
@@ -584,18 +669,20 @@ export default function AdminApp() {
     const { taskId } = useParams();
 
     const task = tasks.find(t => t.taskID === taskId);
+    const project = projects.find(p => p.taskId === taskId);
 
-    if (!task) {
-      return <div>Task not found</div>;
+    if (!task || !project) {
+      return <div>Task or Project not found</div>;
     }
 
     return (
       <UpdateStatusPriority
         task={task}
+        project={project}
         statuses={statuses}
         priorities={priorities}
         employees={employees}
-        onUpdate={handleUpdateTask}
+        onUpdate={(updatedTask) => handleUpdateTask(updatedTask, project.id)}
         onCancel={() => navigate(-1)}
       />
     );
