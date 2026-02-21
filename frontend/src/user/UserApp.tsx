@@ -38,6 +38,7 @@ export interface Project {
   workCategory: 'Routine' | 'Cost Roll' | 'Enhancement' | 'Others';
   status: 'To Do' | 'In Progress' | 'Completed' | 'Revision Required';
   createdAt: string;
+  approvalStatus?: string;
   documents?: TaskDocument[];
   timelines?: ProjectTimeline[];
 }
@@ -94,7 +95,38 @@ const HistoricalProjectWrapper = () => {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(res => res.ok ? res.json() : [])
-      .then(setProjects)
+      .then(data => {
+        const mapped = data.map((p: any) => ({
+          id: String(p.id),
+          projectId: p.projectId,
+          title: p.title,
+          description: p.description,
+          priority: p.priority || 'Not set',
+          dueDate: p.dueDate,
+          estimatedEffort: p.estimatedEffort,
+          workCategory: 'Others',
+          status: p.status,
+          createdAt: p.createdAt,
+          approvalStatus: p.approvalStatus,
+          documents: (p.documents || []).map((d: any) => ({
+            id: d.documentID,
+            name: d.fileName,
+            type: d.fileType,
+            size: d.fileSize,
+            url: d.fileData,
+            uploadedAt: d.uploadedDate,
+          })),
+          timelines: (p.timelines || []).map((t: any) => ({
+            id: t.milestoneID,
+            title: t.milestone,
+            startDate: t.startDate,
+            endDate: t.endDate,
+            status: t.status,
+          })),
+        }));
+
+        setProjects(mapped);
+      })
       .catch(() => setProjects([]));
   }, [token]);
 
@@ -127,7 +159,38 @@ function MainUserApp() {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(res => res.ok ? res.json() : [])
-      .then(setProjects)
+      .then(data => {
+        const mapped = data.map((p: any) => ({
+          id: String(p.id),
+          projectId: p.projectId,
+          title: p.title,
+          description: p.description,
+          priority: p.priority || 'Not set',
+          dueDate: p.dueDate,
+          estimatedEffort: p.estimatedEffort,
+          workCategory: 'Others',
+          status: p.status,
+          createdAt: p.createdAt,
+          approvalStatus: p.approvalStatus,
+          documents: (p.documents || []).map((d: any) => ({
+            id: d.documentID,
+            name: d.fileName,
+            type: d.fileType,
+            size: d.fileSize,
+            url: d.fileData,
+            uploadedAt: d.uploadedDate,
+          })),
+          timelines: (p.timelines || []).map((t: any) => ({
+            id: t.milestoneID,
+            title: t.milestone,
+            startDate: t.startDate,
+            endDate: t.endDate,
+            status: t.status,
+          })),
+        }));
+
+        setProjects(mapped);
+      })
       .catch(() => setProjects([]));
   };
 

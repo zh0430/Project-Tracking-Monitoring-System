@@ -69,6 +69,7 @@ export interface Project {
   dueDate: string;
   completedDate: string | null;
   documents: TaskDocument[];
+  timelines: ProjectTimeline[];  // ✅ ADD THIS
   approvalStatus?: string;       // Pending, Approved, Rejected
 }
 
@@ -287,6 +288,7 @@ export default function AdminApp() {
               dueDate: p.dueDate,
               completedDate: p.completedDate,
               documents: p.documents || [],
+              timelines: p.timelines || [],      // 🔥 ADD THIS
               approvalStatus: p.approvalStatus || null,
             }))
           );
@@ -335,7 +337,7 @@ export default function AdminApp() {
     navigate(`/admin/update/${taskId}`);
   };
 
-  const handleUpdateTask = async (updatedTask: Task, projectId: number) => {
+  const handleUpdateTask = async (updatedTask: Task, taskId: string) => {
     try {
       const token = localStorage.getItem("token");
       
@@ -350,11 +352,11 @@ export default function AdminApp() {
         dueDate: updatedTask.dueDate,
         estimatedEffort: 0,
         documents: updatedTask.documents || [],
-        timelines: updatedTask.timeline || []
+        timelines: updatedTask.timeline ?? []
       };
 
       const response = await fetch(
-        `http://localhost:5000/api/projects/${projectId}`,
+        `http://localhost:5000/api/projects/${taskId}`,
         {
           method: 'PUT',
           headers: {
@@ -372,52 +374,30 @@ export default function AdminApp() {
 
       const updatedProjectData = await response.json();
       
-      // Refresh projects after update
-      const projectsResponse = await fetch("http://localhost:5000/api/admin/projects", {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        credentials: "include",
-      });
+      // Update projects state directly without re-fetching
+      setProjects(prev =>
+        prev.map(p =>
+          p.taskId === taskId
+            ? {
+                ...p,
+                title: updatedTask.title,
+                description: updatedTask.description,
+                dueDate: updatedTask.dueDate,
+                documents: updatedTask.documents ?? [],
+                timelines: updatedTask.timeline ?? [],
+              }
+            : p
+        )
+      );
 
-      if (projectsResponse.ok) {
-        const updatedProjects = await projectsResponse.json();
-
-        setProjects(
-          (updatedProjects || []).map((p: any) => ({
-            id: p.id,
-            projectId: String(p.projectId),
-            taskId: String(p.taskId),
-            title: p.title,
-            description: p.description || "",
-            assignedToUserID: String(p.assignedToUserID),
-            statusID: String(p.statusID),
-            priorityID: String(p.priorityID),
-            createdDate: p.createdDate,
-            dueDate: p.dueDate,
-            completedDate: p.completedDate,
-            documents: p.documents || [],
-            approvalStatus: p.approvalStatus || null,
-          }))
-        );
-      }
-
-      // Refresh tasks after update
-      const tasksResponse = await fetch("http://localhost:5000/api/admin/tasks", {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        credentials: "include",
-      });
-
-      if (tasksResponse.ok) {
-        const updatedTasks = await tasksResponse.json();
-        setTasks(updatedTasks);
-      }
+      // Update tasks state directly without re-fetching
+      setTasks(prev =>
+        prev.map(t =>
+          t.taskID === updatedTask.taskID
+            ? { ...t, statusID: updatedTask.statusID, priorityID: updatedTask.priorityID }
+            : t
+        )
+      );
       
       // If status changed to "Revision Required", send notifications
       const oldTask = tasks.find(t => t.taskID === updatedTask.taskID);
@@ -546,6 +526,7 @@ export default function AdminApp() {
             dueDate: p.dueDate,
             completedDate: p.completedDate,
             documents: p.documents || [],
+            timelines: p.timelines || [],
             approvalStatus: p.approvalStatus || null,
           }))
         );
@@ -682,7 +663,7 @@ export default function AdminApp() {
         statuses={statuses}
         priorities={priorities}
         employees={employees}
-        onUpdate={(updatedTask) => handleUpdateTask(updatedTask, project.id)}
+        onUpdate={(updatedTask) => handleUpdateTask(updatedTask, project.taskId)}
         onCancel={() => navigate(-1)}
       />
     );

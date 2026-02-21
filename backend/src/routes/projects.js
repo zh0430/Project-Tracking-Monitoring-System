@@ -18,8 +18,8 @@ router.get('/', async (req, res) => {
         p.due_date AS "dueDate",
         p.estimated_effort AS "estimatedEffort",
         p.created_at AS "createdAt",
-        p.documents,
-        p.timelines,
+        COALESCE(p.documents, '[]') AS documents,
+        COALESCE(p.timelines, '[]') AS timelines,
         p.task_id AS "taskId"
       FROM projects p
       JOIN tasks t ON p.task_id = t.task_id
@@ -27,6 +27,16 @@ router.get('/', async (req, res) => {
       JOIN priority pr ON t.priority_id = pr.priority_id
       ORDER BY p.created_at DESC
     `);
+
+    // Parse JSON strings for documents and timelines
+    result.rows.forEach(p => {
+      if (typeof p.documents === "string") {
+        p.documents = JSON.parse(p.documents);
+      }
+      if (typeof p.timelines === "string") {
+        p.timelines = JSON.parse(p.timelines);
+      }
+    });
 
     res.json(result.rows);
   } catch (err) {
@@ -41,7 +51,6 @@ router.post('/', authenticate, async (req, res) => {
     const {
       title,
       description,
-      priority,
       dueDate,
       estimatedEffort,
       assignedUserId,
@@ -84,29 +93,38 @@ router.post('/', authenticate, async (req, res) => {
       internalAssignedUserId,
       reporterId,
       1, // default status = To Do
-      priority === "High" ? 3 : priority === "Medium" ? 2 : 1,
+      1, // default priority = Low (priority_id 1)
       new Date(),
       dueDate
     ]);
 
     const newTaskId = taskResult.rows[0].task_id;
 
+    // Format documents with proper structure
+    const formattedDocuments = documents.map(doc => ({
+      documentID: doc.documentID || Date.now().toString(),
+      fileName: doc.fileName || doc.name,
+      fileType: doc.fileType || doc.type,
+      fileSize: doc.fileSize || doc.size,
+      fileData: doc.fileData || doc.url,
+      uploadedDate: new Date()
+    }));
+
     // Insert project WITH task link
     const projectResult = await db.query(
       `INSERT INTO projects
-      (project_id, title, description, priority,
+      (project_id, title, description,
        due_date, estimated_effort, documents,
        timelines, task_id, approval_status)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
       RETURNING *`,
       [
         'PRJ-' + Date.now(),
         title,
         description,
-        priority,
         dueDate,
         estimatedEffort,
-        JSON.stringify(documents),
+        JSON.stringify(formattedDocuments),
         JSON.stringify(timelines),
         newTaskId,
         null // approval_status starts as null
@@ -153,10 +171,10 @@ router.put('/:id', async (req, res) => {
       approvalStatus = 'Pending';
     }
     
-    // Handle empty or missing priority values
+    // Handle empty or missing priority values - default to 'Low'
     const safePriority = priority && priority.trim() !== ''
       ? priority
-      : 'Not set';
+      : 'Low';
     
     const normalizedPriority = normalize(safePriority);
 
@@ -184,6 +202,16 @@ router.put('/:id', async (req, res) => {
     // Start a transaction
     await db.query('BEGIN');
 
+    // Format documents with proper structure
+    const formattedDocuments = documents.map(doc => ({
+      documentID: doc.documentID || Date.now().toString(),
+      fileName: doc.fileName || doc.name,
+      fileType: doc.fileType || doc.type,
+      fileSize: doc.fileSize || doc.size,
+      fileData: doc.fileData || doc.url,
+      uploadedDate: new Date()
+    }));
+
     // update project info
     const projectResult = await db.query(
       `UPDATE projects SET
@@ -194,14 +222,14 @@ router.put('/:id', async (req, res) => {
         documents=$5,
         timelines=$6,
         approval_status = COALESCE($7, approval_status)
-      WHERE id=$8
+      WHERE task_id = $8
       RETURNING task_id`,
       [
         title,
         description,
         dueDate,
         estimatedEffort,
-        JSON.stringify(documents),
+        JSON.stringify(formattedDocuments),
         JSON.stringify(timelines),
         approvalStatus,
         id
@@ -240,15 +268,25 @@ router.put('/:id', async (req, res) => {
         p.due_date AS "dueDate",
         p.estimated_effort AS "estimatedEffort",
         p.created_at AS "createdAt",
-        p.documents,
-        p.timelines,
+        COALESCE(p.documents, '[]') AS documents,
+        COALESCE(p.timelines, '[]') AS timelines,
         p.task_id AS "taskId"
       FROM projects p
       JOIN tasks t ON p.task_id = t.task_id
       JOIN status s ON t.status_id = s.status_id
       JOIN priority pr ON t.priority_id = pr.priority_id
-      WHERE p.id = $1
+      WHERE p.task_id = $1
     `, [id]);
+
+    // Parse JSON strings for documents and timelines
+    updatedProject.rows.forEach(p => {
+      if (typeof p.documents === "string") {
+        p.documents = JSON.parse(p.documents);
+      }
+      if (typeof p.timelines === "string") {
+        p.timelines = JSON.parse(p.timelines);
+      }
+    });
 
     res.json(updatedProject.rows[0]);
 
@@ -272,7 +310,7 @@ router.put('/:id/approval', async (req, res) => {
       await db.query(
         `UPDATE projects
          SET approval_status = 'Approved'
-         WHERE id = $1`,
+         WHERE task_id = $1`,
         [id]
       );
     }
@@ -289,16 +327,14 @@ router.put('/:id/approval', async (req, res) => {
       await db.query(
         `UPDATE tasks
          SET status_id = $1
-         WHERE task_id = (
-           SELECT task_id FROM projects WHERE id = $2
-         )`,
+         WHERE task_id = $2`,
         [revisionStatusId, id]
       );
 
       await db.query(
         `UPDATE projects
          SET approval_status = 'Rejected'
-         WHERE id = $1`,
+         WHERE task_id = $1`,
         [id]
       );
     }

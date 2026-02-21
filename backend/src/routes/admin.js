@@ -176,8 +176,8 @@ router.get("/projects/user/:userId", authenticate, authorizeAdmin, async (req, r
         t.priority_id AS "priorityID",
         p.created_at AS "createdDate",
         p.due_date AS "dueDate",
-        p.documents,
-        p.timelines,
+        COALESCE(p.documents, '[]') AS documents,
+        COALESCE(p.timelines, '[]') AS timelines,
         p.approval_status AS "approvalStatus",
         u.public_user_id AS "assignedToUserID"
       FROM projects p
@@ -186,6 +186,16 @@ router.get("/projects/user/:userId", authenticate, authorizeAdmin, async (req, r
       WHERE u.public_user_id = $1
       ORDER BY p.created_at DESC
     `, [userId]);
+
+    // Parse JSON strings for documents and timelines
+    result.rows.forEach(p => {
+      if (typeof p.documents === "string") {
+        p.documents = JSON.parse(p.documents);
+      }
+      if (typeof p.timelines === "string") {
+        p.timelines = JSON.parse(p.timelines);
+      }
+    });
 
     res.json(result.rows);
   } catch (err) {
@@ -208,8 +218,8 @@ router.get("/projects", authenticate, authorizeAdmin, async (req, res) => {
         t.priority_id AS "priorityID",
         p.created_at AS "createdDate",
         p.due_date AS "dueDate",
-        p.documents,
-        p.timelines,
+        COALESCE(p.documents, '[]') AS documents,
+        COALESCE(p.timelines, '[]') AS timelines,
         p.approval_status AS "approvalStatus",
         u.public_user_id AS "assignedToUserID"
       FROM projects p
@@ -217,6 +227,16 @@ router.get("/projects", authenticate, authorizeAdmin, async (req, res) => {
       JOIN users u ON t.assigned_to_user_id = u.user_id
       ORDER BY p.created_at DESC
     `);
+
+    // Parse JSON strings for documents and timelines
+    result.rows.forEach(p => {
+      if (typeof p.documents === "string") {
+        p.documents = JSON.parse(p.documents);
+      }
+      if (typeof p.timelines === "string") {
+        p.timelines = JSON.parse(p.timelines);
+      }
+    });
 
     res.json(result.rows);
   } catch (err) {

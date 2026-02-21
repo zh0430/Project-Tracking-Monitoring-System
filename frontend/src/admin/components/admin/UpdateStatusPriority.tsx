@@ -25,9 +25,8 @@ export function UpdateStatusPriority({
   const [updatedTask, setUpdatedTask] = useState<Task>({
     ...task,
     documents: project.documents || [],
-    timeline: project.timelines || []
+    timeline: project.timelines ?? []
   });
-  const [approved, setApproved] = useState(false);
   const [showAddMilestone, setShowAddMilestone] = useState(false);
   const [newMilestone, setNewMilestone] = useState<ProjectTimeline>({
     milestoneID: '',
@@ -45,10 +44,6 @@ export function UpdateStatusPriority({
   const currentStatus = statuses.find(s => s.statusID === task.statusID);
   const currentPriority = priorities.find(p => p.priorityID === task.priorityID);
 
-  const handleApprove = () => {
-    setApproved(true);
-  };
-
   const handleUpdate = () => {
     // If status is changed to completed, set completed date
     const newStatus = statuses.find(s => s.statusID === updatedTask.statusID);
@@ -58,7 +53,15 @@ export function UpdateStatusPriority({
       updatedTask.completedDate = null;
     }
     
-    onUpdate(updatedTask);
+    const selectedStatus = statuses.find(s => s.statusID === updatedTask.statusID);
+    const selectedPriority = priorities.find(p => p.priorityID === updatedTask.priorityID);
+
+    onUpdate({
+      ...updatedTask,
+      status: selectedStatus?.statusName,
+      priority: selectedPriority?.priorityLevel,
+      timelines: updatedTask.timeline, // rename here
+    });
   };
 
   const handleAddMilestone = () => {
@@ -215,142 +218,190 @@ export function UpdateStatusPriority({
         </div>
       </div>
 
-      {/* Approval Section */}
-      {!approved ? (
-        <div className="bg-gray-50 p-6 rounded-lg border border-gray-300">
-          <h3 className="text-gray-900 mb-2">Approve Update</h3>
-          <p className="text-gray-600 mb-4">
-            Do you approve updating the status and priority for this task?
-          </p>
-          <div className="flex gap-3">
-            <button
-              onClick={handleApprove}
-              className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+      {/* Update Task Details */}
+      <div className="bg-white p-6 rounded-lg border border-gray-300">
+        <h3 className="text-gray-900 mb-4">Update Task Details</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+          <div>
+            <label className="block text-gray-700 mb-2">
+              Status
+            </label>
+            <select
+              value={updatedTask.statusID}
+              onChange={e => setUpdatedTask({ ...updatedTask, statusID: e.target.value })}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
             >
-              Yes, Approve
-            </button>
-            <button
-              onClick={onCancel}
-              className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+              {statuses.map(status => (
+                <option key={status.statusID} value={status.statusID}>
+                  {status.statusName}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-gray-700 mb-2">
+              Priority
+            </label>
+            <select
+              value={updatedTask.priorityID}
+              onChange={e => setUpdatedTask({ ...updatedTask, priorityID: e.target.value })}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
             >
-              No, Go Back
-            </button>
+              {priorities.map(priority => (
+                <option key={priority.priorityID} value={priority.priorityID}>
+                  {priority.priorityLevel}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
-      ) : (
-        <>
-          <div className="bg-white p-6 rounded-lg border border-gray-300">
-            <h3 className="text-gray-900 mb-4">Update Task Details</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-              <div>
-                <label className="block text-gray-700 mb-2">
-                  Status
-                </label>
-                <select
-                  value={updatedTask.statusID}
-                  onChange={e => setUpdatedTask({ ...updatedTask, statusID: e.target.value })}
+
+        <div className="flex gap-3">
+          <button
+            onClick={handleUpdate}
+            className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+          >
+            Save Changes
+          </button>
+          <button
+            onClick={onCancel}
+            className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+
+      {/* Project Timeline Management */}
+      <div className="bg-white p-6 rounded-lg border border-gray-300">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Calendar className="w-5 h-5 text-gray-700" />
+            <h3 className="text-gray-900">Project Progress Timeline</h3>
+          </div>
+          <button
+            onClick={() => setShowAddMilestone(!showAddMilestone)}
+            className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Add Milestone
+          </button>
+        </div>
+
+        <p className="text-gray-600 text-sm mb-4">
+          Add and manage project milestones to track detailed progress. Changes will automatically update in the Gantt chart.
+        </p>
+
+        {/* Add New Milestone Form */}
+        {showAddMilestone && (
+          <div className="mb-4 p-4 bg-gray-50 rounded-lg border border-gray-300">
+            <h4 className="text-gray-900 mb-3">Add New Milestone</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="md:col-span-2">
+                <label className="block text-gray-700 mb-2 text-sm">Milestone Name</label>
+                <input
+                  type="text"
+                  value={newMilestone.milestone}
+                  onChange={e => setNewMilestone({ ...newMilestone, milestone: e.target.value })}
+                  placeholder="e.g., Initial Research, Design Phase, Testing"
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
-                >
-                  {statuses.map(status => (
-                    <option key={status.statusID} value={status.statusID}>
-                      {status.statusName}
-                    </option>
-                  ))}
-                </select>
+                />
               </div>
               <div>
-                <label className="block text-gray-700 mb-2">
-                  Priority
-                </label>
+                <label className="block text-gray-700 mb-2 text-sm">Start Date</label>
+                <input
+                  type="date"
+                  value={newMilestone.startDate}
+                  onChange={e => setNewMilestone({ ...newMilestone, startDate: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+                />
+              </div>
+              <div>
+                <label className="block text-gray-700 mb-2 text-sm">End Date</label>
+                <input
+                  type="date"
+                  value={newMilestone.endDate}
+                  onChange={e => setNewMilestone({ ...newMilestone, endDate: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+                />
+              </div>
+              <div>
+                <label className="block text-gray-700 mb-2 text-sm">Status</label>
                 <select
-                  value={updatedTask.priorityID}
-                  onChange={e => setUpdatedTask({ ...updatedTask, priorityID: e.target.value })}
+                  value={newMilestone.status}
+                  onChange={e => setNewMilestone({ ...newMilestone, status: e.target.value })}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
                 >
-                  {priorities.map(priority => (
-                    <option key={priority.priorityID} value={priority.priorityID}>
-                      {priority.priorityLevel}
-                    </option>
-                  ))}
+                  <option value="Pending">Pending</option>
+                  <option value="In Progress">In Progress</option>
+                  <option value="Completed">Completed</option>
                 </select>
               </div>
             </div>
-
-            <div className="flex gap-3">
+            <div className="flex gap-3 mt-4">
               <button
-                onClick={handleUpdate}
-                className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                onClick={handleAddMilestone}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
               >
-                Save Changes
+                Add Milestone
               </button>
               <button
-                onClick={onCancel}
-                className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+                onClick={() => setShowAddMilestone(false)}
+                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
               >
                 Cancel
               </button>
             </div>
           </div>
+        )}
 
-          {/* Project Timeline Management */}
-          <div className="bg-white p-6 rounded-lg border border-gray-300">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <Calendar className="w-5 h-5 text-gray-700" />
-                <h3 className="text-gray-900">Project Progress Timeline</h3>
-              </div>
-              <button
-                onClick={() => setShowAddMilestone(!showAddMilestone)}
-                className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-              >
-                <Plus className="w-4 h-4" />
-                Add Milestone
-              </button>
-            </div>
-
-            <p className="text-gray-600 text-sm mb-4">
-              Add and manage project milestones to track detailed progress. Changes will automatically update in the Gantt chart.
-            </p>
-
-            {/* Add New Milestone Form */}
-            {showAddMilestone && (
-              <div className="mb-4 p-4 bg-gray-50 rounded-lg border border-gray-300">
-                <h4 className="text-gray-900 mb-3">Add New Milestone</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="md:col-span-2">
-                    <label className="block text-gray-700 mb-2 text-sm">Milestone Name</label>
+        {/* Existing Milestones */}
+        {updatedTask.timeline && updatedTask.timeline.length > 0 ? (
+          <div className="space-y-3">
+            {updatedTask.timeline.map(milestone => (
+              <div key={milestone.milestoneID} className="p-4 bg-gray-50 rounded-lg border border-gray-300">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex-1">
                     <input
                       type="text"
-                      value={newMilestone.milestone}
-                      onChange={e => setNewMilestone({ ...newMilestone, milestone: e.target.value })}
-                      placeholder="e.g., Initial Research, Design Phase, Testing"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+                      value={milestone.milestone}
+                      onChange={e => handleUpdateMilestone(milestone.milestoneID, 'milestone', e.target.value)}
+                      className="w-full px-3 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-red-500 text-gray-900"
                     />
                   </div>
+                  <button
+                    onClick={() => handleDeleteMilestone(milestone.milestoneID)}
+                    className="ml-3 p-2 text-red-600 hover:bg-red-100 rounded transition-colors"
+                    title="Delete Milestone"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   <div>
-                    <label className="block text-gray-700 mb-2 text-sm">Start Date</label>
+                    <label className="block text-gray-600 text-sm mb-1">Start Date</label>
                     <input
                       type="date"
-                      value={newMilestone.startDate}
-                      onChange={e => setNewMilestone({ ...newMilestone, startDate: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+                      value={milestone.startDate}
+                      onChange={e => handleUpdateMilestone(milestone.milestoneID, 'startDate', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-red-500 text-sm"
                     />
                   </div>
                   <div>
-                    <label className="block text-gray-700 mb-2 text-sm">End Date</label>
+                    <label className="block text-gray-600 text-sm mb-1">End Date</label>
                     <input
                       type="date"
-                      value={newMilestone.endDate}
-                      onChange={e => setNewMilestone({ ...newMilestone, endDate: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+                      value={milestone.endDate}
+                      onChange={e => handleUpdateMilestone(milestone.milestoneID, 'endDate', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-red-500 text-sm"
                     />
                   </div>
                   <div>
-                    <label className="block text-gray-700 mb-2 text-sm">Status</label>
+                    <label className="block text-gray-600 text-sm mb-1">Status</label>
                     <select
-                      value={newMilestone.status}
-                      onChange={e => setNewMilestone({ ...newMilestone, status: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+                      value={milestone.status}
+                      onChange={e => handleUpdateMilestone(milestone.milestoneID, 'status', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-red-500 text-sm"
                     >
                       <option value="Pending">Pending</option>
                       <option value="In Progress">In Progress</option>
@@ -358,105 +409,32 @@ export function UpdateStatusPriority({
                     </select>
                   </div>
                 </div>
-                <div className="flex gap-3 mt-4">
-                  <button
-                    onClick={handleAddMilestone}
-                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-                  >
-                    Add Milestone
-                  </button>
-                  <button
-                    onClick={() => setShowAddMilestone(false)}
-                    className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                </div>
+                <p className="text-xs text-gray-500 mt-2">
+                  Last updated: {milestone.updatedDate}
+                </p>
               </div>
-            )}
-
-            {/* Existing Milestones */}
-            {updatedTask.timeline && updatedTask.timeline.length > 0 ? (
-              <div className="space-y-3">
-                {updatedTask.timeline.map(milestone => (
-                  <div key={milestone.milestoneID} className="p-4 bg-gray-50 rounded-lg border border-gray-300">
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex-1">
-                        <input
-                          type="text"
-                          value={milestone.milestone}
-                          onChange={e => handleUpdateMilestone(milestone.milestoneID, 'milestone', e.target.value)}
-                          className="w-full px-3 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-red-500 text-gray-900"
-                        />
-                      </div>
-                      <button
-                        onClick={() => handleDeleteMilestone(milestone.milestoneID)}
-                        className="ml-3 p-2 text-red-600 hover:bg-red-100 rounded transition-colors"
-                        title="Delete Milestone"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                      <div>
-                        <label className="block text-gray-600 text-sm mb-1">Start Date</label>
-                        <input
-                          type="date"
-                          value={milestone.startDate}
-                          onChange={e => handleUpdateMilestone(milestone.milestoneID, 'startDate', e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-red-500 text-sm"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-gray-600 text-sm mb-1">End Date</label>
-                        <input
-                          type="date"
-                          value={milestone.endDate}
-                          onChange={e => handleUpdateMilestone(milestone.milestoneID, 'endDate', e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-red-500 text-sm"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-gray-600 text-sm mb-1">Status</label>
-                        <select
-                          value={milestone.status}
-                          onChange={e => handleUpdateMilestone(milestone.milestoneID, 'status', e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-red-500 text-sm"
-                        >
-                          <option value="Pending">Pending</option>
-                          <option value="In Progress">In Progress</option>
-                          <option value="Completed">Completed</option>
-                        </select>
-                      </div>
-                    </div>
-                    <p className="text-xs text-gray-500 mt-2">
-                      Last updated: {milestone.updatedDate}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center p-8 bg-gray-50 rounded-lg border border-gray-300">
-                <Calendar className="w-12 h-12 text-gray-400 mx-auto mb-2" />
-                <p className="text-gray-600 mb-1">No milestones added yet</p>
-                <p className="text-sm text-gray-500">Click &quot;Add Milestone&quot; to track detailed progress</p>
-              </div>
-            )}
+            ))}
           </div>
-
-          {/* Document Management */}
-          <div className="bg-white p-6 rounded-lg border border-gray-300">
-            <DocumentManager
-              documents={updatedTask.documents}
-              onUpload={handleUploadDocument}
-              onDelete={handleDeleteDocument}
-              currentUserId="admin1"
-              canUpload={true}
-              employees={employees}
-            />
+        ) : (
+          <div className="text-center p-8 bg-gray-50 rounded-lg border border-gray-300">
+            <Calendar className="w-12 h-12 text-gray-400 mx-auto mb-2" />
+            <p className="text-gray-600 mb-1">No milestones added yet</p>
+            <p className="text-sm text-gray-500">Click &quot;Add Milestone&quot; to track detailed progress</p>
           </div>
-        </>
-      )}
+        )}
+      </div>
+
+      {/* Document Management */}
+      <div className="bg-white p-6 rounded-lg border border-gray-300">
+        <DocumentManager
+          documents={updatedTask.documents}
+          onUpload={handleUploadDocument}
+          onDelete={handleDeleteDocument}
+          currentUserId="admin1"
+          canUpload={true}
+          employees={employees}
+        />
+      </div>
     </div>
   );
 }

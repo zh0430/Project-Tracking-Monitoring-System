@@ -12,7 +12,6 @@ interface EmployeeSummaryProps {
   statuses: Status[];
   priorities: Priority[];
   roles: Role[];
-  onApproveUpdate: (projectId: string) => void;
   onDeleteProject: (projectId: string) => void;
   onUpdateProject: (project: Project) => void;
   currentUserId: string;
@@ -24,7 +23,6 @@ export function EmployeeSummary({
   statuses,
   priorities,
   roles,
-  onApproveUpdate,
   onDeleteProject,
   onUpdateProject,
   currentUserId,
@@ -354,7 +352,6 @@ export function EmployeeSummary({
                       priorities={priorities}
                       statuses={statuses}
                       employees={employees}
-                      onApproveUpdate={onApproveUpdate}
                       onDelete={onDeleteProject}
                     />
                   ))}
@@ -378,7 +375,6 @@ export function EmployeeSummary({
                       priorities={priorities}
                       statuses={statuses}
                       employees={employees}
-                      onApproveUpdate={onApproveUpdate}
                       onDelete={onDeleteProject}
                     />
                   ))}
@@ -402,7 +398,6 @@ export function EmployeeSummary({
                       priorities={priorities}
                       statuses={statuses}
                       employees={employees}
-                      onApproveUpdate={onApproveUpdate}
                       onDelete={onDeleteProject}
                     />
                   ))}
@@ -426,7 +421,6 @@ export function EmployeeSummary({
                       priorities={priorities}
                       statuses={statuses}
                       employees={employees}
-                      onApproveUpdate={onApproveUpdate}
                       onDelete={onDeleteProject}
                     />
                   ))}
@@ -519,11 +513,10 @@ interface ProjectCardProps {
   priorities: Priority[];
   statuses: Status[];
   employees: Employee[];
-  onApproveUpdate: (projectId: string) => void;
   onDelete: (projectId: string) => void;
 }
 
-function ProjectCard({ project, priorities, statuses, employees, onApproveUpdate, onDelete }: ProjectCardProps) {
+function ProjectCard({ project, priorities, statuses, employees, onDelete }: ProjectCardProps) {
   const navigate = useNavigate();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const priority = priorities.find(p => p.priorityID === project.priorityID);
@@ -540,8 +533,6 @@ function ProjectCard({ project, priorities, statuses, employees, onApproveUpdate
     setShowDeleteConfirm(false);
   };
 
-  const isPendingApproval = status?.statusName === 'Completed' && project.approvalStatus === 'Pending';
-
   return (
     <div className="bg-white p-4 rounded-lg border border-gray-300 hover:shadow-md transition-shadow">
       <h4 className="text-gray-900 mb-2">{project.title}</h4>
@@ -554,11 +545,6 @@ function ProjectCard({ project, priorities, statuses, employees, onApproveUpdate
           }`}>
             {priority?.priorityLevel}
           </div>
-          {isPendingApproval && (
-            <span className="inline-flex items-center px-2 py-1 rounded text-xs bg-yellow-100 text-yellow-800 border border-yellow-200">
-              Pending Approval
-            </span>
-          )}
         </div>
 
         <div className="space-y-1 text-sm text-gray-600">
@@ -576,40 +562,20 @@ function ProjectCard({ project, priorities, statuses, employees, onApproveUpdate
       </div>
 
       <div className="flex gap-2 mt-4">
-        {isPendingApproval ? (
-          <>
-            <button
-              onClick={() => onApproveUpdate(project.projectId)}
-              className="flex-1 px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm flex items-center justify-center gap-2"
-            >
-              <CheckCircle className="w-4 h-4" />
-              Approve
-            </button>
-            <button
-              onClick={() => onApproveUpdate(project.projectId)}
-              className="flex-1 px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm flex items-center justify-center gap-2"
-            >
-              <XCircle className="w-4 h-4" />
-              Reject
-            </button>
-          </>
-        ) : (
-          <>
-            <button
-              onClick={() => navigate(`/admin/update/${project.taskId}`)}
-              className="flex-1 px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm"
-            >
-              Update
-            </button>
-            <button
-              onClick={() => setShowDeleteConfirm(true)}
-              className="px-3 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm"
-              title="Delete Project"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
-          </>
-        )}
+        <button
+          onClick={() => navigate(`/admin/update/${project.taskId}`)}
+          className="flex-1 px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm"
+        >
+          Update
+        </button>
+
+        <button
+          onClick={() => setShowDeleteConfirm(true)}
+          className="px-3 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm"
+          title="Delete Project"
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
       </div>
 
       {/* Delete Confirmation */}
