@@ -36,16 +36,18 @@ export function ProjectSubmissionForm({ onSubmit, onCancel }: ProjectSubmissionF
     if (!files) return;
 
     const newDocuments: TaskDocument[] = [];
+
     Array.from(files).forEach((file) => {
-      const url = URL.createObjectURL(file);
       const document: TaskDocument = {
         id: Date.now().toString() + Math.random(),
         name: file.name,
         type: file.type,
         size: file.size,
-        url: url,
+        url: "",
         uploadedAt: new Date().toISOString(),
+        file: file
       };
+
       newDocuments.push(document);
     });
 
@@ -442,7 +444,7 @@ export function ProjectSubmissionForm({ onSubmit, onCancel }: ProjectSubmissionF
                     <li key={doc.id} className="flex items-center gap-2">
                       <span className="text-gray-500">{getFileIcon(doc.type)}</span>
                       <a
-                        href={doc.url}
+                        href={doc.url || "#"}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-gray-900 hover:text-gray-700 transition-colors"

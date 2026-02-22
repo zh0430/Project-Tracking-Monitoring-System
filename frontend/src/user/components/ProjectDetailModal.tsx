@@ -32,6 +32,22 @@ const formatDisplayDate = (date?: string) => {
   });
 };
 
+const formatFileSize = (bytes?: number) => {
+  if (!bytes) return 'Unknown size';
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+};
+
+const getFileIcon = (type?: string) => {
+  if (!type) return '📎';
+
+  if (type.includes('pdf')) return '📄';
+  if (type.includes('word') || type.includes('document')) return '📝';
+  if (type.includes('image')) return '🖼️';
+  return '📎';
+};
+
 export function ProjectDetailModal({
   project,
   onClose,
@@ -70,17 +86,18 @@ export function ProjectDetailModal({
     if (!files) return;
 
     const newDocuments: TaskDocument[] = [];
+
     Array.from(files).forEach((file) => {
-      // Create a blob URL for the file
-      const url = URL.createObjectURL(file);
       const document: TaskDocument = {
         id: Date.now().toString() + Math.random(),
         name: file.name,
         type: file.type,
         size: file.size,
-        url: url,
+        url: "",          // 🚫 DO NOT USE BLOB
         uploadedAt: new Date().toISOString(),
+        file: file        // ✅ STORE REAL FILE
       };
+
       newDocuments.push(document);
     });
 
@@ -127,17 +144,17 @@ export function ProjectDetailModal({
     setTimelines(timelines.map(t => t.id === timelineId ? { ...t, ...updates } : t));
   };
 
-  const formatFileSize = (bytes: number) => {
-    if (bytes < 1024) return bytes + ' B';
-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
-    return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
-  };
-
-  const getFileIcon = (type: string) => {
-    if (type.includes('pdf')) return '📄';
-    if (type.includes('word') || type.includes('document')) return '📝';
-    if (type.includes('image')) return '🖼️';
-    return '📎';
+  const getStatusColor = (status: ProjectTimeline['status']) => {
+    switch (status) {
+      case 'Completed':
+        return 'bg-gray-200 text-gray-800';
+      case 'In Progress':
+        return 'bg-gray-800 text-white';
+      case 'Revision Required':
+        return 'bg-red-100 text-red-800 border border-red-300';
+      default:
+        return 'bg-gray-100 text-gray-700';
+    }
   };
 
   const handleSave = () => {
@@ -162,19 +179,6 @@ export function ProjectDetailModal({
 
     onDeleteProject(project.id);
     onClose();
-  };
-
-  const getStatusColor = (status: ProjectTimeline['status']) => {
-    switch (status) {
-      case 'Completed':
-        return 'bg-gray-200 text-gray-800';
-      case 'In Progress':
-        return 'bg-gray-800 text-white';
-      case 'Revision Required':
-        return 'bg-red-100 text-red-800 border border-red-300';
-      default:
-        return 'bg-gray-100 text-gray-700';
-    }
   };
 
   return (
@@ -642,13 +646,49 @@ export function ProjectDetailModal({
                         </div>
                       </div>
                       <div className="flex items-center gap-2 ml-4">
-                        <a
-                          href={doc.url}
-                          download={doc.name}
-                          className="p-2 text-gray-600 hover:text-gray-900 transition-colors"
-                        >
-                          <Download className="w-4 h-4" />
-                        </a>
+                        {doc.url && !doc.url.startsWith('blob:') ? (
+                          <button
+                            onClick={() => {
+                              if (doc.file) {
+                                const tempUrl = URL.createObjectURL(doc.file);
+                                const a = document.createElement('a');
+                                a.href = tempUrl;
+                                a.download = doc.name;
+                                document.body.appendChild(a);
+                                a.click();
+                                document.body.removeChild(a);
+                                URL.revokeObjectURL(tempUrl);
+                              } else {
+                                window.open(doc.url, '_blank');
+                              }
+                            }}
+                            className="p-2 text-gray-600 hover:text-gray-900 transition-colors"
+                            title="Download"
+                          >
+                            <Download className="w-4 h-4" />
+                          </button>
+                        ) : !doc.file ? (
+                          <span className="text-xs text-red-500 px-2" title="File no longer available">
+                            ⚠️ Lost
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => {
+                              const tempUrl = URL.createObjectURL(doc.file!);
+                              const a = document.createElement('a');
+                              a.href = tempUrl;
+                              a.download = doc.name;
+                              document.body.appendChild(a);
+                              a.click();
+                              document.body.removeChild(a);
+                              URL.revokeObjectURL(tempUrl);
+                            }}
+                            className="p-2 text-gray-600 hover:text-gray-900 transition-colors"
+                            title="Download"
+                          >
+                            <Download className="w-4 h-4" />
+                          </button>
+                        )}
                         {isEditing && !readOnly && !isLocked && (
                           <button
                             onClick={() => handleDeleteDocument(doc.id)}

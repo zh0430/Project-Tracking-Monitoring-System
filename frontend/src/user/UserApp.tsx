@@ -15,6 +15,7 @@ export interface TaskDocument {
   size: number;
   url: string;
   uploadedAt: string;
+  file?: File;   // 👈 ADD THIS
 }
 
 export interface ProjectTimeline {
@@ -64,13 +65,27 @@ const ProjectSubmissionFormWrapper = () => {
   const handleSubmit = (projectData: any) => {
     const token = localStorage.getItem("token");
     
+    const formData = new FormData();
+
+    formData.append("title", projectData.title);
+    formData.append("description", projectData.description);
+    formData.append("dueDate", projectData.dueDate || "");
+    formData.append("estimatedEffort", projectData.estimatedEffort || "");
+
+    if (projectData.documents) {
+      projectData.documents.forEach((doc: any) => {
+        if (doc.file) {
+          formData.append("documents", doc.file);
+        }
+      });
+    }
+
     fetch("http://localhost:5000/api/projects", {
       method: "POST",
       headers: {
-        "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify(projectData),
+      body: formData,
     })
       .then(res => {
         if (res.ok) {
@@ -108,14 +123,16 @@ const HistoricalProjectWrapper = () => {
           status: p.status,
           createdAt: p.createdAt,
           approvalStatus: p.approvalStatus,
-          documents: (p.documents || []).map((d: any) => ({
-            id: d.documentID,
-            name: d.fileName,
-            type: d.fileType,
-            size: d.fileSize,
-            url: d.fileData,
-            uploadedAt: d.uploadedDate,
-          })),
+          documents: Array.isArray(p.documents)
+            ? p.documents.map((d: any) => ({
+                id: d.documentID || d.id || Date.now().toString(),
+                name: d.fileName || d.name,          // original filename
+                type: d.fileType || d.type || '',
+                size: Number(d.fileSize || d.size || 0),
+                url: d.fileData || d.url || '',
+                uploadedAt: d.uploadedDate || d.uploadedAt,
+              }))
+            : [],
           timelines: (p.timelines || []).map((t: any) => ({
             id: t.milestoneID,
             title: t.milestone,
@@ -172,14 +189,16 @@ function MainUserApp() {
           status: p.status,
           createdAt: p.createdAt,
           approvalStatus: p.approvalStatus,
-          documents: (p.documents || []).map((d: any) => ({
-            id: d.documentID,
-            name: d.fileName,
-            type: d.fileType,
-            size: d.fileSize,
-            url: d.fileData,
-            uploadedAt: d.uploadedDate,
-          })),
+          documents: Array.isArray(p.documents)
+            ? p.documents.map((d: any) => ({
+                id: d.documentID || d.id || Date.now().toString(),
+                name: d.fileName || d.name,          // original filename
+                type: d.fileType || d.type || '',
+                size: Number(d.fileSize || d.size || 0),
+                url: d.fileData || d.url || '',
+                uploadedAt: d.uploadedDate || d.uploadedAt,
+              }))
+            : [],
           timelines: (p.timelines || []).map((t: any) => ({
             id: t.milestoneID,
             title: t.milestone,
@@ -254,56 +273,82 @@ function MainUserApp() {
     setTimeout(() => setSuccessMessage(''), 3000);
   };
 
-  const handleCreateProject = (projectData: Omit<Project, 'id' | 'projectId' | 'status' | 'createdAt'>) => {
+  const handleCreateProject = (projectData: any) => {
     const token = localStorage.getItem("token");
-    
+
+    const formData = new FormData();
+
+    formData.append("title", projectData.title);
+    formData.append("description", projectData.description);
+    formData.append("dueDate", projectData.dueDate || "");
+    formData.append("estimatedEffort", projectData.estimatedEffort || "");
+
+    // Append files
+    if (projectData.documents) {
+      projectData.documents.forEach((file: File) => {
+        formData.append("documents", file);
+      });
+    }
+
     fetch("http://localhost:5000/api/projects", {
       method: "POST",
       headers: {
-        "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify(projectData),
+      body: formData,
+    })
+      .then(res => res.json())
+      .then(() => {
+        fetchProjects();
+        navigate("dashboard");
+        showSuccessMessage("Project submitted.");
+      })
+      .catch(console.error);
+  };
+
+  const handleUpdateProject = (projectId: string, updates: any) => {
+    const token = localStorage.getItem("token");
+    const formData = new FormData();
+
+    formData.append("title", updates.title);
+    formData.append("description", updates.description);
+    formData.append("priority", updates.priority || "");
+    formData.append("status", updates.status);
+    formData.append("dueDate", updates.dueDate || "");
+    formData.append("estimatedEffort", updates.estimatedEffort || "");
+
+    const existingDocs: any[] = [];
+
+    if (updates.documents) {
+      updates.documents.forEach((doc: any) => {
+        if (doc.file) {
+          formData.append("documents", doc.file);
+        } else if (doc.url && !doc.url.startsWith('blob:')) {
+          existingDocs.push(doc);
+        }
+      });
+    }
+
+    formData.append("existingDocuments", JSON.stringify(existingDocs));
+
+    fetch(`http://localhost:5000/api/projects/${projectId}`, {
+      method: "PUT",
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
     })
       .then(res => {
         if (!res.ok) {
-          throw new Error('Failed to create project');
+          return res.json().then(err => { throw new Error(err.error || `HTTP ${res.status}`); });
         }
         return res.json();
       })
       .then(() => {
-        fetchProjects(); // 🔥 Refresh projects from DB
-        navigate('dashboard');
-        showSuccessMessage('Project submitted for review.');
+        fetchProjects();
+        showSuccessMessage("Project updated.");
       })
       .catch(error => {
-        console.error('Error creating project:', error);
-        showSuccessMessage('Failed to create project. Please try again.');
-      });
-  };
-
-  const handleUpdateProject = (projectId: string, updates: Partial<Project>) => {
-    const token = localStorage.getItem("token");
-
-    fetch(`http://localhost:5000/api/projects/${projectId}`, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(updates),
-    })
-      .then(res => {
-        if (!res.ok) throw new Error("Failed to update project");
-        return res.json();
-      })
-      .then(() => {
-        fetchProjects(); // 🔥 Refresh projects from DB
-        showSuccessMessage("Project updated successfully.");
-      })
-      .catch(error => {
-        console.error(error);
-        showSuccessMessage("Failed to update project.");
+        console.error("Update failed:", error);
+        showSuccessMessage(`Failed to update project: ${error.message}`);
       });
   };
 
@@ -334,7 +379,6 @@ function MainUserApp() {
     fetch("http://localhost:5000/api/users/me", {
       method: "PUT",
       headers: {
-        "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify(updates),

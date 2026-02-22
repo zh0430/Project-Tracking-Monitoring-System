@@ -2,6 +2,29 @@ const express = require('express');
 const router = express.Router();
 const db = require('../config/db');
 const authenticate = require('../middleware/auth.middleware');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+
+// Ensure uploads directory exists
+const uploadsDir = path.join(__dirname, '../uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    // Use absolute path instead of relative 'uploads/'
+    cb(null, path.join(__dirname, '../uploads'));
+  },
+  filename: (req, file, cb) => {
+    // Also sanitize filename to remove spaces
+    const safeName = file.originalname.replace(/\s+/g, '_');
+    cb(null, Date.now() + '-' + safeName);
+  }
+});
+
+const upload = multer({ storage });
 
 // GET all projects
 router.get('/', async (req, res) => {
@@ -22,8 +45,8 @@ router.get('/', async (req, res) => {
         p.status_id AS "statusId",
         p.priority_id AS "priorityId"
       FROM projects p
-      JOIN status s ON p.status_id = s.status_id
-      JOIN priority pr ON p.priority_id = pr.priority_id
+      LEFT JOIN status s ON p.status_id = s.status_id
+      LEFT JOIN priority pr ON p.priority_id = pr.priority_id
       ORDER BY p.created_at DESC
     `);
 
@@ -41,16 +64,22 @@ router.get('/', async (req, res) => {
   }
 });
 
-// POST new project - Protected route
-router.post('/', authenticate, async (req, res) => {
+// POST new project - Protected route with file upload and error handling
+router.post('/', authenticate, (req, res, next) => {
+  upload.array('documents')(req, res, (err) => {
+    if (err) {
+      console.error('Multer error on POST:', err);
+      return res.status(500).json({ error: 'File upload failed: ' + err.message });
+    }
+    next();
+  });
+}, async (req, res) => {
   try {
     const {
       title,
       description,
       dueDate,
-      estimatedEffort,
-      assignedUserId,
-      documents = []
+      estimatedEffort
     } = req.body;
 
     // Get default status and priority IDs
@@ -65,13 +94,14 @@ router.post('/', authenticate, async (req, res) => {
     const statusId = statusResult.rows[0].status_id;
     const priorityId = priorityResult.rows[0].priority_id;
 
-    // Format documents with proper structure
-    const formattedDocuments = documents.map(doc => ({
-      documentID: doc.documentID || Date.now().toString(),
-      fileName: doc.fileName || doc.name,
-      fileType: doc.fileType || doc.type,
-      fileSize: doc.fileSize || doc.size,
-      fileData: doc.fileData || doc.url,
+    // Format documents with proper structure from uploaded files
+    const formattedDocuments = (req.files || []).map(file => ({
+      documentID: Date.now().toString(),
+      fileName: file.originalname,        // ← original name for display
+      fileStoreName: file.filename,        // ← multer name for storage
+      fileType: file.mimetype,
+      fileSize: file.size,
+      fileData: `http://localhost:5000/uploads/${file.filename}`,
       uploadedDate: new Date()
     }));
 
@@ -105,8 +135,16 @@ router.post('/', authenticate, async (req, res) => {
   }
 });
 
-// UPDATE project
-router.put('/:id', async (req, res) => {
+// UPDATE project with file upload and error handling
+router.put('/:id', (req, res, next) => {
+  upload.array('documents')(req, res, (err) => {
+    if (err) {
+      console.error('Multer error on PUT:', err);
+      return res.status(500).json({ error: 'File upload failed: ' + err.message });
+    }
+    next();
+  });
+}, async (req, res) => {
   try {
     const { id } = req.params;
     const {
@@ -116,7 +154,7 @@ router.put('/:id', async (req, res) => {
       status,
       dueDate,
       estimatedEffort,
-      documents = []
+      existingDocuments = []
     } = req.body;
 
     // normalize helper
@@ -160,15 +198,31 @@ router.put('/:id', async (req, res) => {
     const statusId = statusRow.status_id;
     const priorityId = priorityRow.priority_id;
 
-    // Format documents with proper structure
-    const formattedDocuments = documents.map(doc => ({
-      documentID: doc.documentID || Date.now().toString(),
-      fileName: doc.fileName || doc.name,
-      fileType: doc.fileType || doc.type,
-      fileSize: doc.fileSize || doc.size,
-      fileData: doc.fileData || doc.url,
+    // Parse existing documents if they're sent as a string
+    let parsedExistingDocuments = [];
+    if (existingDocuments) {
+      try {
+        parsedExistingDocuments = typeof existingDocuments === 'string' 
+          ? JSON.parse(existingDocuments) 
+          : existingDocuments;
+      } catch (e) {
+        console.error('Error parsing existing documents:', e);
+      }
+    }
+
+    // Format new uploaded documents
+    const newDocuments = (req.files || []).map(file => ({
+      documentID: Date.now().toString() + Math.random(),
+      fileName: file.originalname,        // ← original name for display
+      fileStoreName: file.filename,        // ← multer name for storage
+      fileType: file.mimetype,
+      fileSize: file.size,
+      fileData: `http://localhost:5000/uploads/${file.filename}`,
       uploadedDate: new Date()
     }));
+
+    // Combine existing and new documents
+    const allDocuments = [...parsedExistingDocuments, ...newDocuments];
 
     // update project info directly
     const projectResult = await db.query(
@@ -188,7 +242,7 @@ router.put('/:id', async (req, res) => {
         description,
         dueDate,
         estimatedEffort,
-        JSON.stringify(formattedDocuments),
+        JSON.stringify(allDocuments),
         approvalStatus,
         statusId,
         priorityId,
@@ -217,8 +271,8 @@ router.put('/:id', async (req, res) => {
         p.status_id AS "statusId",
         p.priority_id AS "priorityId"
       FROM projects p
-      JOIN status s ON p.status_id = s.status_id
-      JOIN priority pr ON p.priority_id = pr.priority_id
+      LEFT JOIN status s ON p.status_id = s.status_id
+      LEFT JOIN priority pr ON p.priority_id = pr.priority_id
       WHERE p.id = $1
     `, [id]);
 
