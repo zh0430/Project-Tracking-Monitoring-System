@@ -19,22 +19,18 @@ router.get('/', async (req, res) => {
         p.estimated_effort AS "estimatedEffort",
         p.created_at AS "createdAt",
         COALESCE(p.documents, '[]') AS documents,
-        COALESCE(p.timelines, '[]') AS timelines,
-        p.task_id AS "taskId"
+        p.status_id AS "statusId",
+        p.priority_id AS "priorityId"
       FROM projects p
-      JOIN tasks t ON p.task_id = t.task_id
-      JOIN status s ON t.status_id = s.status_id
-      JOIN priority pr ON t.priority_id = pr.priority_id
+      JOIN status s ON p.status_id = s.status_id
+      JOIN priority pr ON p.priority_id = pr.priority_id
       ORDER BY p.created_at DESC
     `);
 
-    // Parse JSON strings for documents and timelines
+    // Parse JSON strings for documents
     result.rows.forEach(p => {
       if (typeof p.documents === "string") {
         p.documents = JSON.parse(p.documents);
-      }
-      if (typeof p.timelines === "string") {
-        p.timelines = JSON.parse(p.timelines);
       }
     });
 
@@ -54,51 +50,20 @@ router.post('/', authenticate, async (req, res) => {
       dueDate,
       estimatedEffort,
       assignedUserId,
-      documents = [],
-      timelines = []
+      documents = []
     } = req.body;
 
-    // fallback: assign to creator if not provided
-    const reporterId = req.user.userId;
-    const finalAssignedUserId = assignedUserId || reporterId;
+    // Get default status and priority IDs
+    const statusResult = await db.query(
+      `SELECT status_id FROM status WHERE status_name = 'To Do'`
+    );
 
-    // Start a transaction
-    await db.query('BEGIN');
+    const priorityResult = await db.query(
+      `SELECT priority_id FROM priority WHERE priority_level = 'Low'`
+    );
 
-    // Convert public ID → internal numeric ID only if provided
-    let internalAssignedUserId = finalAssignedUserId;
-
-    if (typeof finalAssignedUserId === "string" && finalAssignedUserId.startsWith("USR-")) {
-      const userResult = await db.query(
-        `SELECT user_id FROM users WHERE public_user_id = $1`,
-        [finalAssignedUserId]
-      );
-
-      if (userResult.rows.length === 0) {
-        throw new Error("Assigned user not found");
-      }
-
-      internalAssignedUserId = userResult.rows[0].user_id;
-    }
-
-    // Create task FIRST
-    const taskResult = await db.query(`
-      INSERT INTO tasks
-      (title, assigned_to_user_id, reported_by_user_id,
-       status_id, priority_id, creation_date, due_date)
-      VALUES ($1,$2,$3,$4,$5,$6,$7)
-      RETURNING task_id
-    `, [
-      title,
-      internalAssignedUserId,
-      reporterId,
-      1, // default status = To Do
-      1, // default priority = Low (priority_id 1)
-      new Date(),
-      dueDate
-    ]);
-
-    const newTaskId = taskResult.rows[0].task_id;
+    const statusId = statusResult.rows[0].status_id;
+    const priorityId = priorityResult.rows[0].priority_id;
 
     // Format documents with proper structure
     const formattedDocuments = documents.map(doc => ({
@@ -110,12 +75,14 @@ router.post('/', authenticate, async (req, res) => {
       uploadedDate: new Date()
     }));
 
-    // Insert project WITH task link
+    // Insert project with status_id and priority_id
     const projectResult = await db.query(
       `INSERT INTO projects
       (project_id, title, description,
-       due_date, estimated_effort, documents,
-       timelines, task_id, approval_status)
+       due_date, estimated_effort,
+       documents,
+       approval_status,
+       status_id, priority_id)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
       RETURNING *`,
       [
@@ -125,19 +92,14 @@ router.post('/', authenticate, async (req, res) => {
         dueDate,
         estimatedEffort,
         JSON.stringify(formattedDocuments),
-        JSON.stringify(timelines),
-        newTaskId,
-        null // approval_status starts as null
+        null, // approval_status starts as null
+        statusId,
+        priorityId
       ]
     );
 
-    // Commit the transaction
-    await db.query('COMMIT');
-
     res.json(projectResult.rows[0]);
   } catch (err) {
-    // Rollback in case of error
-    await db.query('ROLLBACK');
     console.error('POST project error:', err);
     res.status(500).json({ error: 'Failed to create project' });
   }
@@ -154,8 +116,7 @@ router.put('/:id', async (req, res) => {
       status,
       dueDate,
       estimatedEffort,
-      documents = [],
-      timelines = []
+      documents = []
     } = req.body;
 
     // normalize helper
@@ -199,9 +160,6 @@ router.put('/:id', async (req, res) => {
     const statusId = statusRow.status_id;
     const priorityId = priorityRow.priority_id;
 
-    // Start a transaction
-    await db.query('BEGIN');
-
     // Format documents with proper structure
     const formattedDocuments = documents.map(doc => ({
       documentID: doc.documentID || Date.now().toString(),
@@ -212,7 +170,7 @@ router.put('/:id', async (req, res) => {
       uploadedDate: new Date()
     }));
 
-    // update project info
+    // update project info directly
     const projectResult = await db.query(
       `UPDATE projects SET
         title=$1,
@@ -220,40 +178,27 @@ router.put('/:id', async (req, res) => {
         due_date=$3,
         estimated_effort=$4,
         documents=$5,
-        timelines=$6,
-        approval_status = COALESCE($7, approval_status)
-      WHERE task_id = $8
-      RETURNING task_id`,
+        approval_status = COALESCE($6, approval_status),
+        status_id=$7,
+        priority_id=$8
+      WHERE id = $9
+      RETURNING id`,
       [
         title,
         description,
         dueDate,
         estimatedEffort,
         JSON.stringify(formattedDocuments),
-        JSON.stringify(timelines),
         approvalStatus,
+        statusId,
+        priorityId,
         id
       ]
     );
 
     if (projectResult.rows.length === 0) {
-      await db.query('ROLLBACK');
       return res.status(404).json({ error: 'Project not found' });
     }
-
-    const taskId = projectResult.rows[0].task_id;
-
-    // update task status & priority
-    await db.query(
-      `UPDATE tasks
-       SET status_id=$1,
-           priority_id=$2
-       WHERE task_id=$3`,
-      [statusId, priorityId, taskId]
-    );
-
-    // Commit the transaction
-    await db.query('COMMIT');
 
     // Fetch the updated project with joins to return complete data
     const updatedProject = await db.query(`
@@ -269,30 +214,24 @@ router.put('/:id', async (req, res) => {
         p.estimated_effort AS "estimatedEffort",
         p.created_at AS "createdAt",
         COALESCE(p.documents, '[]') AS documents,
-        COALESCE(p.timelines, '[]') AS timelines,
-        p.task_id AS "taskId"
+        p.status_id AS "statusId",
+        p.priority_id AS "priorityId"
       FROM projects p
-      JOIN tasks t ON p.task_id = t.task_id
-      JOIN status s ON t.status_id = s.status_id
-      JOIN priority pr ON t.priority_id = pr.priority_id
-      WHERE p.task_id = $1
+      JOIN status s ON p.status_id = s.status_id
+      JOIN priority pr ON p.priority_id = pr.priority_id
+      WHERE p.id = $1
     `, [id]);
 
-    // Parse JSON strings for documents and timelines
+    // Parse JSON strings for documents
     updatedProject.rows.forEach(p => {
       if (typeof p.documents === "string") {
         p.documents = JSON.parse(p.documents);
-      }
-      if (typeof p.timelines === "string") {
-        p.timelines = JSON.parse(p.timelines);
       }
     });
 
     res.json(updatedProject.rows[0]);
 
   } catch (err) {
-    // Rollback in case of error
-    await db.query('ROLLBACK');
     console.error('PUT project error:', err);
     res.status(500).json({ error: 'Failed to update project' });
   }
@@ -304,19 +243,17 @@ router.put('/:id/approval', async (req, res) => {
     const { id } = req.params;
     const { action } = req.body; // "approve" or "reject"
 
-    await db.query('BEGIN');
-
     if (action === 'approve') {
       await db.query(
         `UPDATE projects
          SET approval_status = 'Approved'
-         WHERE task_id = $1`,
+         WHERE id = $1`,
         [id]
       );
     }
 
     if (action === 'reject') {
-      // move back to Revision Required
+      // Get the status ID for 'Revision Required'
       const statusResult = await db.query(
         `SELECT status_id FROM status
          WHERE status_name = 'Revision Required'`
@@ -325,65 +262,38 @@ router.put('/:id/approval', async (req, res) => {
       const revisionStatusId = statusResult.rows[0].status_id;
 
       await db.query(
-        `UPDATE tasks
-         SET status_id = $1
-         WHERE task_id = $2`,
+        `UPDATE projects
+         SET approval_status = 'Rejected',
+             status_id = $1
+         WHERE id = $2`,
         [revisionStatusId, id]
       );
-
-      await db.query(
-        `UPDATE projects
-         SET approval_status = 'Rejected'
-         WHERE task_id = $1`,
-        [id]
-      );
     }
-
-    await db.query('COMMIT');
 
     res.json({ success: true });
 
   } catch (err) {
-    await db.query('ROLLBACK');
     console.error('Approval error:', err);
     res.status(500).json({ error: 'Failed to update approval status' });
   }
 });
 
 // DELETE project
-router.delete('/:projectId', async (req, res) => {
+router.delete('/:id', async (req, res) => {
   try {
-    const { projectId } = req.params;
-
-    await db.query('BEGIN');
+    const { id } = req.params;
 
     const projectResult = await db.query(
-      `SELECT task_id FROM projects WHERE project_id = $1`,
-      [projectId]
+      `DELETE FROM projects WHERE id = $1 RETURNING id`,
+      [id]
     );
 
     if (projectResult.rows.length === 0) {
-      await db.query('ROLLBACK');
       return res.status(404).json({ error: 'Project not found' });
     }
 
-    const taskId = projectResult.rows[0].task_id;
-
-    await db.query(
-      `DELETE FROM projects WHERE project_id = $1`,
-      [projectId]
-    );
-
-    await db.query(
-      `DELETE FROM tasks WHERE task_id = $1`,
-      [taskId]
-    );
-
-    await db.query('COMMIT');
-
     res.json({ success: true });
   } catch (err) {
-    await db.query('ROLLBACK');
     console.error('DELETE project error:', err);
     res.status(500).json({ error: 'Failed to delete project' });
   }

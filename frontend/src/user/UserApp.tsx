@@ -32,7 +32,7 @@ export interface Project {
   projectId: string;
   title: string;
   description: string;
-  priority?: 'Low' | 'Medium' | 'High';
+  priority?: 'Low' | 'Medium' | 'High' | undefined;
   dueDate?: string;
   estimatedEffort?: string;
   workCategory: 'Routine' | 'Cost Roll' | 'Enhancement' | 'Others';
@@ -101,7 +101,7 @@ const HistoricalProjectWrapper = () => {
           projectId: p.projectId,
           title: p.title,
           description: p.description,
-          priority: p.priority || 'Not set',
+          priority: p.priority || undefined,
           dueDate: p.dueDate,
           estimatedEffort: p.estimatedEffort,
           workCategory: 'Others',
@@ -165,7 +165,7 @@ function MainUserApp() {
           projectId: p.projectId,
           title: p.title,
           description: p.description,
-          priority: p.priority || 'Not set',
+          priority: p.priority || undefined,
           dueDate: p.dueDate,
           estimatedEffort: p.estimatedEffort,
           workCategory: 'Others',
