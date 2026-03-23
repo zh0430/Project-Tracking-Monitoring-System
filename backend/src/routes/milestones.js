@@ -155,18 +155,11 @@ router.post('/', authenticate, async (req, res) => {
   }
 });
 
-// PUT update milestone
+// PUT update milestone - simplified version
 router.put('/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
-    const {
-      title,
-      description,
-      startDate,
-      endDate,
-      status,
-      priority
-    } = req.body;
+    const { title, description, startDate, endDate, status, priority } = req.body;
 
     // Check if milestone exists
     const milestoneCheck = await db.query(
@@ -178,77 +171,17 @@ router.put('/:id', authenticate, async (req, res) => {
       return res.status(404).json({ error: 'Milestone not found' });
     }
 
-    // Get status_id from status name if provided
-    let statusId = null;
-    if (status) {
-      const statusResult = await db.query(
-        `SELECT status_id FROM status WHERE status_name = $1`,
-        [status]
-      );
-      if (statusResult.rows.length === 0) {
-        return res.status(400).json({ error: 'Invalid status value' });
-      }
-      statusId = statusResult.rows[0].status_id;
-    }
-
-    // Get priority_id from priority level if provided
-    let priorityId = null;
-    if (priority) {
-      const priorityResult = await db.query(
-        `SELECT priority_id FROM priority WHERE priority_level = $1`,
-        [priority]
-      );
-      if (priorityResult.rows.length === 0) {
-        return res.status(400).json({ error: 'Invalid priority value' });
-      }
-      priorityId = priorityResult.rows[0].priority_id;
-    }
-
-    // Build dynamic update query
-    const updates = [];
-    const values = [];
-    let paramIndex = 1;
-
-    if (title !== undefined) {
-      updates.push(`title = $${paramIndex++}`);
-      values.push(title);
-    }
-    if (description !== undefined) {
-      updates.push(`description = $${paramIndex++}`);
-      values.push(description);
-    }
-    if (startDate !== undefined) {
-      updates.push(`start_date = $${paramIndex++}`);
-      values.push(startDate);
-    }
-    if (endDate !== undefined) {
-      updates.push(`end_date = $${paramIndex++}`);
-      values.push(endDate);
-    }
-    if (statusId !== null) {
-      updates.push(`status_id = $${paramIndex++}`);
-      values.push(statusId);
-    }
-    if (priorityId !== null) {
-      updates.push(`priority_id = $${paramIndex++}`);
-      values.push(priorityId);
-    }
-
-    if (updates.length === 0) {
-      return res.status(400).json({ error: 'No fields to update' });
-    }
-
-    values.push(id); // Add id for WHERE clause
-
-    // Execute the update query
-    const updateQuery = `
-      UPDATE project_milestones
-      SET ${updates.join(', ')}
-      WHERE milestone_id = $${paramIndex}
-      RETURNING milestone_id
-    `;
-    
-    await db.query(updateQuery, values);
+    await db.query(
+      `UPDATE project_milestones
+       SET title=$1,
+           description=$2,
+           start_date=$3,
+           end_date=$4,
+           status_id=(SELECT status_id FROM status WHERE status_name=$5),
+           priority_id=(SELECT priority_id FROM priority WHERE priority_level=$6)
+       WHERE milestone_id=$7`,
+      [title, description, startDate, endDate, status, priority, id]
+    );
 
     // Fetch the updated milestone with joins to return complete data
     const updated = await db.query(`

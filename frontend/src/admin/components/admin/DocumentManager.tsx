@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { TaskDocument, Employee } from '../../App';
-import { Upload, FileText, Download, Trash2, X } from 'lucide-react';
+import { Upload, FileText, Download, Trash2 } from 'lucide-react';
 
 interface DocumentManagerProps {
   documents: TaskDocument[];
@@ -9,9 +9,18 @@ interface DocumentManagerProps {
   currentUserId: string;
   canUpload: boolean;
   employees?: Employee[];
+  projectId?: string | number; // Added projectId for API calls
 }
 
-export function DocumentManager({ documents, onUpload, onDelete, currentUserId, canUpload, employees }: DocumentManagerProps) {
+export function DocumentManager({ 
+  documents, 
+  onUpload, 
+  onDelete, 
+  currentUserId, 
+  canUpload, 
+  employees,
+  projectId 
+}: DocumentManagerProps) {
   const [uploading, setUploading] = useState(false);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -24,55 +33,68 @@ export function DocumentManager({ documents, onUpload, onDelete, currentUserId, 
       return;
     }
 
+    if (!projectId) {
+      alert('Project ID is required for upload');
+      return;
+    }
+
     setUploading(true);
 
     try {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const base64 = reader.result as string;
-        
-        const newDocument: TaskDocument = {
-          documentID: Date.now().toString(),
-          fileName: file.name,
-          fileSize: file.size,
-          fileType: file.type,
-          uploadedBy: currentUserId,
-          uploadedDate: new Date().toISOString().split('T')[0],
-          fileData: base64,
-        };
+      const formData = new FormData();
+      formData.append("documents", file);
 
-        onUpload(newDocument);
-        setUploading(false);
-        
-        // Reset input
-        e.target.value = '';
-      };
+      const token = localStorage.getItem("token");
 
-      reader.onerror = () => {
-        alert('Error reading file');
-        setUploading(false);
-      };
+      const res = await fetch(`http://localhost:5000/api/projects/${projectId}/upload`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`
+        },
+        body: formData
+      });
 
-      reader.readAsDataURL(file);
+      if (!res.ok) {
+        throw new Error('Upload failed');
+      }
+
+      const data = await res.json();
+      
+      // Get the newly uploaded document from the response
+      const newDocument = data.documents[0];
+      onUpload(newDocument);
+      
+      // Reset input
+      e.target.value = '';
     } catch (error) {
+      console.error('Error uploading file:', error);
       alert('Error uploading file');
+    } finally {
       setUploading(false);
     }
   };
 
-  const handleDownload = (doc: TaskDocument) => {
-    const link = document.createElement('a');
+  const handleDownload = (doc: any) => {
+    if (!doc.fileData) {
+      alert("File not available");
+      return;
+    }
+
+    const link = document.createElement("a");
     link.href = doc.fileData;
-    link.download = doc.fileName;
+    link.download = doc.fileName || doc.name || "download";
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
-  const formatFileSize = (bytes: number) => {
-    if (bytes < 1024) return bytes + ' B';
-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  const formatFileSize = (bytes?: number) => {
+    if (!bytes) return "—";
+
+    if (bytes < 1024) return bytes + " B";
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + " KB";
+
+    return (bytes / (1024 * 1024)).toFixed(2) + " MB";
   };
 
   return (
@@ -102,15 +124,15 @@ export function DocumentManager({ documents, onUpload, onDelete, currentUserId, 
         <div className="space-y-2">
           {documents.map((doc) => (
             <div
-              key={doc.documentID}
+              key={doc.documentID || doc.id || doc.fileStoreName || doc.fileName || doc.name}
               className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-300 hover:bg-gray-100 transition-colors"
             >
               <div className="flex items-center gap-3 flex-1">
                 <FileText className="w-5 h-5 text-gray-600" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-gray-900 truncate">{doc.fileName}</p>
+                  <p className="text-gray-900 truncate">{doc.fileName || doc.name || "Unnamed file"}</p>
                   <p className="text-gray-500 text-xs">
-                    {formatFileSize(doc.fileSize)} • Uploaded {doc.uploadedDate}
+                    {formatFileSize(doc.fileSize || doc.size)} • Uploaded {doc.uploadedDate}
                   </p>
                 </div>
               </div>

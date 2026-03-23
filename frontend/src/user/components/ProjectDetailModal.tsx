@@ -64,9 +64,8 @@ export function ProjectDetailModal({
   const [formData, setFormData] = useState({
     title: project.title,
     description: project.description,
-    priority: project.priority || '',
+    priority: project.priority || 'Not set',
     dueDate: formatForInput(project.dueDate),
-    estimatedEffort: project.estimatedEffort || '',
     status: project.status,
   });
   const [documents, setDocuments] = useState<TaskDocument[]>(project.documents || []);
@@ -80,6 +79,34 @@ export function ProjectDetailModal({
     description: '',
   });
   const [showAddTimeline, setShowAddTimeline] = useState(false);
+
+  const handleDownload = (doc: any) => {
+    // ✅ backend file
+    if (doc.fileData) {
+      const link = document.createElement("a");
+      link.href = doc.fileData;
+      link.download = doc.name || "download";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      return;
+    }
+
+    // ✅ local file
+    if (doc.file) {
+      const tempUrl = URL.createObjectURL(doc.file);
+      const link = document.createElement("a");
+      link.href = tempUrl;
+      link.download = doc.name;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(tempUrl);
+      return;
+    }
+
+    alert("File not available");
+  };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -136,7 +163,24 @@ export function ProjectDetailModal({
     setShowAddTimeline(false);
   };
 
-  const handleDeleteTimeline = (timelineId: string) => {
+  const handleDeleteTimeline = async (timelineId: string) => {
+    const token = localStorage.getItem("token");
+
+    // delete from database if it's a real milestone
+    if (!isNaN(Number(timelineId))) {
+      try {
+        await fetch(`http://localhost:5000/api/milestones/${timelineId}`, {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+      } catch (err) {
+        console.error("Delete milestone error:", err);
+      }
+    }
+
+    // remove from UI
     setTimelines(timelines.filter((t) => t.id !== timelineId));
   };
 
@@ -158,16 +202,21 @@ export function ProjectDetailModal({
   };
 
   const handleSave = () => {
+    const fixedTimelines = timelines.map(t => ({
+      ...t,
+      priority: t.priority || "Not set"   // ✅ FORCE VALUE
+    }));
+
     onUpdateProject(project.id, {
       title: formData.title,
       description: formData.description,
-      priority: formData.priority as Project['priority'],
+      priority: formData.priority,
       dueDate: formData.dueDate || undefined,
-      estimatedEffort: formData.estimatedEffort || undefined,
       status: formData.status,
       documents: documents,
-      timelines: timelines,
+      timelines: fixedTimelines,   // ✅ USE FIXED VERSION
     });
+
     onClose();
   };
 
@@ -255,7 +304,7 @@ export function ProjectDetailModal({
                   }
                   className="w-full px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-gray-400 bg-white"
                 >
-                  <option value="">Not set</option>
+                  <option value="Not set">Not set</option>
                   <option value="Low">Low</option>
                   <option value="Medium">Medium</option>
                   <option value="High">High</option>
@@ -279,26 +328,6 @@ export function ProjectDetailModal({
                 />
               ) : (
                 <div className="text-gray-900">{formatDisplayDate(project.dueDate)}</div>
-              )}
-            </div>
-
-            {/* Estimated Effort */}
-            <div>
-              <label className="block text-gray-700 mb-2">Estimated Effort</label>
-              {isEditing && !readOnly && !isLocked ? (
-                <input
-                  type="text"
-                  value={formData.estimatedEffort}
-                  onChange={(e) =>
-                    setFormData({ ...formData, estimatedEffort: e.target.value })
-                  }
-                  placeholder="e.g., 4 hours, 2 days"
-                  className="w-full px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-gray-400"
-                />
-              ) : (
-                <div className="text-gray-900">
-                  {project.estimatedEffort || 'Not specified'}
-                </div>
               )}
             </div>
 
@@ -486,7 +515,7 @@ export function ProjectDetailModal({
                             <div className="text-gray-900 mb-2">{timeline.title}</div>
                           )}
                           
-                          {/* Priority Display */}
+                          {/* Priority Display - Updated version */}
                           <div className="mb-2">
                             <span className="text-gray-600 text-sm">Priority: </span>
                             {isEditing && !readOnly && !isLocked ? (
@@ -500,19 +529,13 @@ export function ProjectDetailModal({
                                 className="px-2 py-1 border border-gray-300 rounded bg-white text-sm"
                               >
                                 <option value="">Not set</option>
-                                <option value="Low">4 - Low</option>
-                                <option value="Medium">2 - Medium</option>
-                                <option value="High">1 - High</option>
+                                <option value="Low">Low</option>
+                                <option value="Medium">Medium</option>
+                                <option value="High">High</option>
                               </select>
                             ) : (
-                              <span className={`text-sm ${
-                                timeline.priority === 'High' ? 'text-red-600' :
-                                timeline.priority === 'Medium' ? 'text-gray-700' :
-                                timeline.priority === 'Low' ? 'text-gray-500' : 'text-gray-400'
-                              }`}>
-                                {timeline.priority === 'High' ? '1 - High' :
-                                 timeline.priority === 'Medium' ? '2 - Medium' :
-                                 timeline.priority === 'Low' ? '4 - Low' : 'Not set'}
+                              <span className="text-sm text-gray-700">
+                                {timeline.priority || 'Not set'}
                               </span>
                             )}
                           </div>
@@ -646,49 +669,13 @@ export function ProjectDetailModal({
                         </div>
                       </div>
                       <div className="flex items-center gap-2 ml-4">
-                        {doc.url && !doc.url.startsWith('blob:') ? (
-                          <button
-                            onClick={() => {
-                              if (doc.file) {
-                                const tempUrl = URL.createObjectURL(doc.file);
-                                const a = document.createElement('a');
-                                a.href = tempUrl;
-                                a.download = doc.name;
-                                document.body.appendChild(a);
-                                a.click();
-                                document.body.removeChild(a);
-                                URL.revokeObjectURL(tempUrl);
-                              } else {
-                                window.open(doc.url, '_blank');
-                              }
-                            }}
-                            className="p-2 text-gray-600 hover:text-gray-900 transition-colors"
-                            title="Download"
-                          >
-                            <Download className="w-4 h-4" />
-                          </button>
-                        ) : !doc.file ? (
-                          <span className="text-xs text-red-500 px-2" title="File no longer available">
-                            ⚠️ Lost
-                          </span>
-                        ) : (
-                          <button
-                            onClick={() => {
-                              const tempUrl = URL.createObjectURL(doc.file!);
-                              const a = document.createElement('a');
-                              a.href = tempUrl;
-                              a.download = doc.name;
-                              document.body.appendChild(a);
-                              a.click();
-                              document.body.removeChild(a);
-                              URL.revokeObjectURL(tempUrl);
-                            }}
-                            className="p-2 text-gray-600 hover:text-gray-900 transition-colors"
-                            title="Download"
-                          >
-                            <Download className="w-4 h-4" />
-                          </button>
-                        )}
+                        <button
+                          onClick={() => handleDownload(doc)}
+                          className="p-2 text-gray-600 hover:text-gray-900 transition-colors"
+                          title="Download"
+                        >
+                          <Download className="w-4 h-4" />
+                        </button>
                         {isEditing && !readOnly && !isLocked && (
                           <button
                             onClick={() => handleDeleteDocument(doc.id)}
@@ -725,9 +712,8 @@ export function ProjectDetailModal({
                       setFormData({
                         title: project.title,
                         description: project.description,
-                        priority: project.priority || '',
+                        priority: project.priority || 'Not set',
                         dueDate: formatForInput(project.dueDate),
-                        estimatedEffort: project.estimatedEffort || '',
                         status: project.status,
                       });
                       setDocuments(project.documents || []);

@@ -13,7 +13,7 @@ export interface TaskDocument {
   name: string;
   type: string;
   size: number;
-  url: string;
+  fileData: string;   // ✅ use this ONLY
   uploadedAt: string;
   file?: File;   // 👈 ADD THIS
 }
@@ -24,7 +24,7 @@ export interface ProjectTimeline {
   startDate: string;
   endDate: string;
   status: 'To Do' | 'In Progress' | 'Completed' | 'Revision Required';
-  priority?: 'Low' | 'Medium' | 'High';
+  priority?: 'Low' | 'Medium' | 'High' | 'Not set';
   description?: string;
 }
 
@@ -35,7 +35,6 @@ export interface Project {
   description: string;
   priority?: 'Low' | 'Medium' | 'High' | undefined;
   dueDate?: string;
-  estimatedEffort?: string;
   workCategory: 'Routine' | 'Cost Roll' | 'Enhancement' | 'Others';
   status: 'To Do' | 'In Progress' | 'Completed' | 'Revision Required';
   createdAt: string;
@@ -62,15 +61,16 @@ export interface User {
 const ProjectSubmissionFormWrapper = () => {
   const navigate = useNavigate();
   
-  const handleSubmit = (projectData: any) => {
+  const handleSubmit = async (projectData: any) => {
     const token = localStorage.getItem("token");
-    
+    const user = JSON.parse(localStorage.getItem("user")!);
+
     const formData = new FormData();
 
-    formData.append("title", projectData.title);
+    formData.append("title", projectData.title);   // 🔥 MISSING LINE (CRITICAL)
+    formData.append("assignedUserId", user.userId);
     formData.append("description", projectData.description);
     formData.append("dueDate", projectData.dueDate || "");
-    formData.append("estimatedEffort", projectData.estimatedEffort || "");
 
     if (projectData.documents) {
       projectData.documents.forEach((doc: any) => {
@@ -80,19 +80,46 @@ const ProjectSubmissionFormWrapper = () => {
       });
     }
 
-    fetch("http://localhost:5000/api/projects", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-      body: formData,
-    })
-      .then(res => {
-        if (res.ok) {
-          navigate('/user/projects');
+    try {
+      const res = await fetch("http://localhost:5000/api/projects", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      if (!res.ok) throw new Error("Project creation failed");
+
+      const newProject = await res.json();
+
+      // ⭐ CREATE MILESTONES
+      if (projectData.timelines && projectData.timelines.length > 0) {
+        for (const t of projectData.timelines) {
+          await fetch("http://localhost:5000/api/milestones", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              projectId: newProject.id,
+              title: t.title,
+              description: t.description || "",
+              startDate: t.startDate,
+              endDate: t.endDate,
+              status: t.status,
+              priority: t.priority || "Not set"
+            }),
+          });
         }
-      })
-      .catch(console.error);
+      }
+
+      navigate('/user/projects');
+
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   return <ProjectSubmissionForm onSubmit={handleSubmit} onCancel={() => navigate('/user/projects')} />;
@@ -118,7 +145,6 @@ const HistoricalProjectWrapper = () => {
           description: p.description,
           priority: p.priority || undefined,
           dueDate: p.dueDate,
-          estimatedEffort: p.estimatedEffort,
           workCategory: 'Others',
           status: p.status,
           createdAt: p.createdAt,
@@ -129,16 +155,18 @@ const HistoricalProjectWrapper = () => {
                 name: d.fileName || d.name,          // original filename
                 type: d.fileType || d.type || '',
                 size: Number(d.fileSize || d.size || 0),
-                url: d.fileData || d.url || '',
+                fileData: d.fileData || d.url || '',
                 uploadedAt: d.uploadedDate || d.uploadedAt,
               }))
             : [],
           timelines: (p.timelines || []).map((t: any) => ({
-            id: t.milestoneID,
-            title: t.milestone,
+            id: t.id,
+            title: t.title,
+            description: t.description,   // ⭐ ADD THIS
             startDate: t.startDate,
             endDate: t.endDate,
             status: t.status,
+            priority: t.priority
           })),
         }));
 
@@ -184,7 +212,6 @@ function MainUserApp() {
           description: p.description,
           priority: p.priority || undefined,
           dueDate: p.dueDate,
-          estimatedEffort: p.estimatedEffort,
           workCategory: 'Others',
           status: p.status,
           createdAt: p.createdAt,
@@ -195,16 +222,18 @@ function MainUserApp() {
                 name: d.fileName || d.name,          // original filename
                 type: d.fileType || d.type || '',
                 size: Number(d.fileSize || d.size || 0),
-                url: d.fileData || d.url || '',
+                fileData: d.fileData || d.url || '',
                 uploadedAt: d.uploadedDate || d.uploadedAt,
               }))
             : [],
           timelines: (p.timelines || []).map((t: any) => ({
-            id: t.milestoneID,
-            title: t.milestone,
+            id: t.id,
+            title: t.title,
+            description: t.description,   // ⭐ ADD THIS
             startDate: t.startDate,
             endDate: t.endDate,
             status: t.status,
+            priority: t.priority
           })),
         }));
 
@@ -281,7 +310,6 @@ function MainUserApp() {
     formData.append("title", projectData.title);
     formData.append("description", projectData.description);
     formData.append("dueDate", projectData.dueDate || "");
-    formData.append("estimatedEffort", projectData.estimatedEffort || "");
 
     // Append files
     if (projectData.documents) {
@@ -315,21 +343,25 @@ function MainUserApp() {
     formData.append("priority", updates.priority || "");
     formData.append("status", updates.status);
     formData.append("dueDate", updates.dueDate || "");
-    formData.append("estimatedEffort", updates.estimatedEffort || "");
 
     const existingDocs: any[] = [];
 
     if (updates.documents) {
       updates.documents.forEach((doc: any) => {
         if (doc.file) {
+          // new upload
           formData.append("documents", doc.file);
-        } else if (doc.url && !doc.url.startsWith('blob:')) {
+        } else if (doc.fileData || doc.fileStoreName) {
+          // ✅ KEEP existing documents
           existingDocs.push(doc);
         }
       });
     }
 
     formData.append("existingDocuments", JSON.stringify(existingDocs));
+
+    // ✅ ADD THIS LINE (Fix timeline deletion)
+    formData.append("timelines", JSON.stringify(updates.timelines || []));
 
     fetch(`http://localhost:5000/api/projects/${projectId}`, {
       method: "PUT",

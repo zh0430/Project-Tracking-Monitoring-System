@@ -11,9 +11,8 @@ export function ProjectSubmissionForm({ onSubmit, onCancel }: ProjectSubmissionF
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    priority: '' as '' | 'Low' | 'Medium' | 'High',
+    priority: 'Not set' as 'Not set' | 'Low' | 'Medium' | 'High',
     dueDate: '',
-    estimatedEffort: '',
   });
 
   const [errors, setErrors] = useState({
@@ -28,6 +27,8 @@ export function ProjectSubmissionForm({ onSubmit, onCancel }: ProjectSubmissionF
     startDate: '',
     endDate: '',
     status: 'To Do' as ProjectTimeline['status'],
+    description: '',
+    priority: 'Not set',
   });
   const [showAddTimeline, setShowAddTimeline] = useState(false);
 
@@ -65,11 +66,13 @@ export function ProjectSubmissionForm({ onSubmit, onCancel }: ProjectSubmissionF
     }
 
     const timeline: ProjectTimeline = {
-      id: Date.now().toString(),
+      id: "new-" + Date.now(),
       title: newTimeline.title,
       startDate: newTimeline.startDate,
       endDate: newTimeline.endDate,
       status: newTimeline.status,
+      description: newTimeline.description || undefined,
+      priority: newTimeline.priority,
     };
 
     setTimelines([...timelines, timeline]);
@@ -78,6 +81,8 @@ export function ProjectSubmissionForm({ onSubmit, onCancel }: ProjectSubmissionF
       startDate: '',
       endDate: '',
       status: 'To Do',
+      description: '',
+      priority: 'Not set',
     });
     setShowAddTimeline(false);
   };
@@ -119,9 +124,8 @@ export function ProjectSubmissionForm({ onSubmit, onCancel }: ProjectSubmissionF
     onSubmit({
       title: formData.title,
       description: formData.description,
-      priority: formData.priority || undefined,
+      priority: formData.priority === 'Not set' ? undefined : formData.priority,
       dueDate: formData.dueDate || undefined,
-      estimatedEffort: formData.estimatedEffort || undefined,
       documents: documents.length > 0 ? documents : undefined,
       timelines: timelines.length > 0 ? timelines : undefined,
     });
@@ -130,9 +134,8 @@ export function ProjectSubmissionForm({ onSubmit, onCancel }: ProjectSubmissionF
     setFormData({
       title: '',
       description: '',
-      priority: '',
+      priority: 'Not set',
       dueDate: '',
-      estimatedEffort: '',
     });
     setDocuments([]);
     setTimelines([]);
@@ -231,12 +234,12 @@ export function ProjectSubmissionForm({ onSubmit, onCancel }: ProjectSubmissionF
                 onChange={(e) =>
                   setFormData({
                     ...formData,
-                    priority: e.target.value as '' | 'Low' | 'Medium' | 'High',
+                    priority: e.target.value as 'Not set' | 'Low' | 'Medium' | 'High',
                   })
                 }
                 className="w-full px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-gray-400 bg-white"
               >
-                <option value="">Select priority</option>
+                <option value="Not set">Not set</option>
                 <option value="Low">Low</option>
                 <option value="Medium">Medium</option>
                 <option value="High">High</option>
@@ -254,23 +257,6 @@ export function ProjectSubmissionForm({ onSubmit, onCancel }: ProjectSubmissionF
                 value={formData.dueDate}
                 onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
                 className="w-full px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-gray-400"
-              />
-            </div>
-
-            {/* Estimated Effort */}
-            <div>
-              <label htmlFor="estimatedEffort" className="block text-gray-900 mb-2">
-                Estimated Effort
-              </label>
-              <input
-                type="text"
-                id="estimatedEffort"
-                value={formData.estimatedEffort}
-                onChange={(e) =>
-                  setFormData({ ...formData, estimatedEffort: e.target.value })
-                }
-                className="w-full px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-gray-400"
-                placeholder="e.g., 4 hours, 2 days"
               />
             </div>
 
@@ -344,6 +330,37 @@ export function ProjectSubmissionForm({ onSubmit, onCancel }: ProjectSubmissionF
                         <option value="Revision Required">Revision Required</option>
                       </select>
                     </div>
+                    {/* Priority dropdown */}
+                    <div className="col-span-2">
+                      <label className="block text-gray-700 mb-2">Priority</label>
+                      <select
+                        value={newTimeline.priority}
+                        onChange={(e) =>
+                          setNewTimeline({
+                            ...newTimeline,
+                            priority: e.target.value,
+                          })
+                        }
+                        className="w-full px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-gray-400 bg-white"
+                      >
+                        <option value="Not set">Not set</option>
+                        <option value="Low">Low</option>
+                        <option value="Medium">Medium</option>
+                        <option value="High">High</option>
+                      </select>
+                    </div>
+                    {/* Description field */}
+                    <div className="col-span-2">
+                      <label className="block text-gray-700 mb-2">Description</label>
+                      <textarea
+                        value={newTimeline.description}
+                        onChange={(e) =>
+                          setNewTimeline({ ...newTimeline, description: e.target.value })
+                        }
+                        className="w-full px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-gray-400 min-h-[80px]"
+                        placeholder="Enter timeline description"
+                      />
+                    </div>
                   </div>
                   <div className="flex gap-2 mt-4">
                     <button
@@ -362,6 +379,8 @@ export function ProjectSubmissionForm({ onSubmit, onCancel }: ProjectSubmissionF
                           startDate: '',
                           endDate: '',
                           status: 'To Do',
+                          description: '',
+                          priority: 'Not set',
                         });
                       }}
                       className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded hover:bg-gray-50 transition-colors"
@@ -387,6 +406,14 @@ export function ProjectSubmissionForm({ onSubmit, onCancel }: ProjectSubmissionF
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           <div className="text-gray-900 mb-2">{timeline.title}</div>
+                          
+                          {/* Description display */}
+                          {timeline.description && (
+                            <div className="text-gray-700 text-sm mb-2 whitespace-pre-wrap">
+                              {timeline.description}
+                            </div>
+                          )}
+                          
                           <div className="grid grid-cols-2 gap-4 text-sm">
                             <div>
                               <span className="text-gray-600">Start: </span>
@@ -401,10 +428,15 @@ export function ProjectSubmissionForm({ onSubmit, onCancel }: ProjectSubmissionF
                               </span>
                             </div>
                           </div>
-                          <div className="mt-2">
+                          <div className="mt-2 flex gap-2">
                             <span className={`inline-block px-2 py-1 rounded text-xs ${getStatusColor(timeline.status)}`}>
                               {timeline.status}
                             </span>
+                            {timeline.priority && timeline.priority !== 'Not set' && (
+                              <span className="inline-block px-2 py-1 rounded text-xs bg-gray-100 text-gray-700 border border-gray-300">
+                                Priority: {timeline.priority}
+                              </span>
+                            )}
                           </div>
                         </div>
                         <button

@@ -8,7 +8,6 @@ import {
   exportProjectsPDF,
   exportProjectsWord
 } from '../../shared/utils/userExport';
-import { getActiveProjects } from '../../shared/utils/projectHelpers';
 
 interface ManageProjectProps {
   projects: Project[];
@@ -84,8 +83,14 @@ export function ManageProject({
     }
   };
 
-  // Get active projects using the helper function
-  const activeProjects = getActiveProjects(projects);
+  // Get active projects - hide only when completed AND approved
+  const activeProjects = projects.filter(p => {
+    // ❌ Hide ONLY when approved
+    if (p.status === 'Completed' && p.approvalStatus === 'Approved') {
+      return false;
+    }
+    return true;
+  });
 
   // Apply filters
   const filteredProjects = activeProjects.filter((project) => {

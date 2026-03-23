@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { GlobalDashboard } from './components/admin/GlobalDashboard';
 import { ManageUsers } from './components/admin/ManageUsers';
 import { EmployeeSummary } from './components/admin/EmployeeSummary';
-import { UpdateStatusPriority } from './components/admin/UpdateStatusPriority';
+import { UpdateStatusPriority } from './components/admin/UpdateProject';
 import { AdminSettings } from './components/admin/AdminSettings';
 import { TeamGanttChart } from './components/admin/TeamGanttChart';
 import { Sidebar } from './components/admin/Sidebar';
@@ -33,12 +33,13 @@ export interface Status {
 }
 
 export interface ProjectTimeline {
-  milestoneID: string;
-  milestone: string;
+  id: string;
+  title: string;
+  description?: string;
   startDate: string;
   endDate: string;
   status: string;
-  updatedDate: string;
+  priority?: 'Low' | 'Medium' | 'High';
 }
 
 export interface Task {
@@ -57,20 +58,21 @@ export interface Task {
 }
 
 export interface Project {
-  id: number;                    // ✅ ADD THIS
+  id: number;
   projectId: string;
-  taskId: string;                // Link to the associated task
   title: string;
   description: string;
-  assignedToUserID: string;
+  assignedToUserIDs: string[]; // Changed from assignedToUserID to support multiple assignments
   statusID: string;
+  status?: string; // 🔥 ADD THIS - for display status name
   priorityID: string;
+  priority?: string; // 🔥 ADD THIS - for display priority name
   createdDate: string;
   dueDate: string;
   completedDate: string | null;
   documents: TaskDocument[];
-  timelines: ProjectTimeline[];  // ✅ ADD THIS
-  approvalStatus?: string;       // Pending, Approved, Rejected
+  timelines: ProjectTimeline[];
+  approvalStatus?: string; // Pending, Approved, Rejected
 }
 
 export interface TaskDocument {
@@ -276,19 +278,28 @@ export default function AdminApp() {
           // Transform projects data with correct field mapping
           setProjects(
             (projectsData || []).map((p: any) => ({
-              id: p.id,                         // ✅ ADD
+              id: p.id,
               projectId: String(p.projectId),
-              taskId: String(p.taskId),
               title: p.title,
               description: p.description || "",
-              assignedToUserID: String(p.assignedToUserID),
-              statusID: String(p.statusID),
+              assignedToUserIDs: p.assignedToUserIDs || [], // Changed to array
+              statusID: String(p.statusID),   // ✅ FIXED
+              status: p.status || null,       // safe fallback
               priorityID: String(p.priorityID),
+              priority: p.priority || null,   // safe fallback
               createdDate: p.createdDate,
               dueDate: p.dueDate,
               completedDate: p.completedDate,
               documents: p.documents || [],
-              timelines: p.timelines || [],      // 🔥 ADD THIS
+              timelines: (p.timelines || []).map((tl: any) => ({
+                id: String(tl.id ?? tl.milestoneID),
+                title: tl.title ?? tl.milestone ?? "",
+                description: tl.description ?? "",
+                startDate: tl.startDate,
+                endDate: tl.endDate,
+                status: tl.status,
+                priority: tl.priority ?? 'Low'
+              })),
               approvalStatus: p.approvalStatus || null,
             }))
           );
@@ -337,7 +348,7 @@ export default function AdminApp() {
     navigate(`/admin/update/${taskId}`);
   };
 
-  const handleUpdateTask = async (updatedTask: Task, taskId: string) => {
+  const handleUpdateTask = async (updatedTask: Task, projectId: string) => {
     try {
       const token = localStorage.getItem("token");
       
@@ -350,13 +361,20 @@ export default function AdminApp() {
         status: statusObj?.statusName,
         priority: priorityObj?.priorityLevel,
         dueDate: updatedTask.dueDate,
-        estimatedEffort: 0,
         documents: updatedTask.documents || [],
-        timelines: updatedTask.timeline ?? []
+        timelines: (updatedTask.timeline || []).map(tl => ({
+          id: tl.id,
+          title: tl.title,
+          description: tl.description || '',
+          startDate: tl.startDate,
+          endDate: tl.endDate,
+          status: tl.status,
+          priority: tl.priority || 'Low'
+        }))
       };
 
       const response = await fetch(
-        `http://localhost:5000/api/projects/${taskId}`,
+        `http://localhost:5000/api/projects/${projectId}`,
         {
           method: 'PUT',
           headers: {
@@ -377,14 +395,22 @@ export default function AdminApp() {
       // Update projects state directly without re-fetching
       setProjects(prev =>
         prev.map(p =>
-          p.taskId === taskId
+          p.projectId === projectId
             ? {
                 ...p,
                 title: updatedTask.title,
                 description: updatedTask.description,
                 dueDate: updatedTask.dueDate,
                 documents: updatedTask.documents ?? [],
-                timelines: updatedTask.timeline ?? [],
+                timelines: (updatedTask.timeline || []).map(tl => ({
+                  id: tl.id,
+                  title: tl.title,
+                  description: tl.description || '',
+                  startDate: tl.startDate,
+                  endDate: tl.endDate,
+                  status: tl.status,
+                  priority: tl.priority || 'Low'
+                })),
               }
             : p
         )
@@ -440,7 +466,10 @@ export default function AdminApp() {
 
       // Navigate back to employee summary
       if (updatedTask.assignedToUserID) {
-        navigate(`/admin/summary/${updatedTask.assignedToUserID}`);
+        const firstUserId = Array.isArray(updatedTask.assignedToUserID) 
+          ? updatedTask.assignedToUserID[0] 
+          : updatedTask.assignedToUserID;
+        navigate(`/admin/summary/${firstUserId}`);
       }
     } catch (error) {
       console.error('Error updating task:', error);
@@ -474,6 +503,11 @@ export default function AdminApp() {
   const handleAddTask = async (task: Task) => {
     try {
       const token = localStorage.getItem("token");
+      
+      // Find status name from statusID
+      const statusObj = statuses.find(s => s.statusID === task.statusID);
+      const priorityObj = priorities.find(p => p.priorityID === task.priorityID);
+
       const response = await fetch("http://localhost:5000/api/projects", {
         method: 'POST',
         headers: {
@@ -484,12 +518,20 @@ export default function AdminApp() {
         body: JSON.stringify({
           title: task.title,
           description: task.description,
-          priority: priorities.find(p => p.priorityID === task.priorityID)?.priorityLevel,
+          status: statusObj?.statusName || 'To Do',
+          priority: priorityObj?.priorityLevel,
           dueDate: task.dueDate,
-          estimatedEffort: 0,
           assignedUserId: task.assignedToUserID,
           documents: task.documents,
-          timelines: []
+          timelines: (task.timeline || []).map(tl => ({
+            id: tl.id,
+            title: tl.title,
+            description: tl.description || '',
+            startDate: tl.startDate,
+            endDate: tl.endDate,
+            status: tl.status,
+            priority: tl.priority || 'Low'
+          }))
         }),
       });
 
@@ -516,17 +558,26 @@ export default function AdminApp() {
           (updatedProjects || []).map((p: any) => ({
             id: p.id,
             projectId: String(p.projectId),
-            taskId: String(p.taskId),
             title: p.title,
             description: p.description || "",
-            assignedToUserID: String(p.assignedToUserID),
-            statusID: String(p.statusID),
+            assignedToUserIDs: p.assignedToUserIDs || [],
+            statusID: String(p.statusID),   // ✅ FIXED
+            status: p.status || null,       // safe fallback
             priorityID: String(p.priorityID),
+            priority: p.priority || null,   // safe fallback
             createdDate: p.createdDate,
             dueDate: p.dueDate,
             completedDate: p.completedDate,
             documents: p.documents || [],
-            timelines: p.timelines || [],
+            timelines: (p.timelines || []).map((tl: any) => ({
+              id: String(tl.id ?? tl.milestoneID),
+              title: tl.title ?? tl.milestone ?? "",
+              description: tl.description ?? "",
+              startDate: tl.startDate,
+              endDate: tl.endDate,
+              status: tl.status,
+              priority: tl.priority ?? 'Low'
+            })),
             approvalStatus: p.approvalStatus || null,
           }))
         );
@@ -613,25 +664,60 @@ export default function AdminApp() {
     }
   };
 
-  const handleDeleteProject = async (projectId: string) => {
+  const handleDeleteProject = async (
+    projectId: string,
+    dbId: number,
+    mode: "ALL" | "SELF" = "ALL",
+    targetUserId?: string
+  ) => {
     try {
       const token = localStorage.getItem("token");
 
-      const response = await fetch(
-        `http://localhost:5000/api/projects/${projectId}`,
-        {
-          method: "DELETE",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          credentials: "include",
+      if (mode === "SELF") {
+        const userToRemove = targetUserId;
+
+        if (!userToRemove) {
+          console.error("No user specified for SELF deletion");
+          return;
         }
-      );
 
-      if (!response.ok) throw new Error("Failed to delete project");
+        await fetch(
+          `http://localhost:5000/api/projects/${dbId}/user/${userToRemove}`,
+          {
+            method: "DELETE",
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
 
-      setProjects(projects.filter(p => p.projectId !== projectId));
+        // 🔥 REMOVE USER FROM STATE
+        setProjects(prev =>
+          prev.map(p =>
+            p.id === dbId
+              ? {
+                  ...p,
+                  assignedToUserIDs: p.assignedToUserIDs.filter(
+                    id => id !== userToRemove
+                  ),
+                }
+              : p
+          )
+        );
+
+      } else {
+        await fetch(
+          `http://localhost:5000/api/projects/${dbId}`,
+          {
+            method: "DELETE",
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+
+        setProjects(prev => prev.filter(p => p.id !== dbId));
+      }
 
     } catch (error) {
       console.error("Delete error:", error);
@@ -649,12 +735,27 @@ export default function AdminApp() {
   const UpdateTaskWrapper = () => {
     const { taskId } = useParams();
 
-    const task = tasks.find(t => t.taskID === taskId);
-    const project = projects.find(p => p.taskId === taskId);
+    const project = projects.find(p => p.projectId === taskId);
 
-    if (!task || !project) {
-      return <div>Task or Project not found</div>;
+    if (!project) {
+      return <div>Project not found</div>;
     }
+
+    // create fake task object from project
+    const task = {
+      taskID: project.projectId,
+      title: project.title,
+      description: project.description,
+      assignedToUserID: project.assignedToUserIDs, // Changed to array
+      reportedByUserID: "",
+      statusID: project.statusID,
+      priorityID: project.priorityID,
+      createdDate: project.createdDate,
+      dueDate: project.dueDate,
+      completedDate: project.completedDate,
+      documents: project.documents,
+      timeline: project.timelines || [],
+    };
 
     return (
       <UpdateStatusPriority
@@ -663,7 +764,45 @@ export default function AdminApp() {
         statuses={statuses}
         priorities={priorities}
         employees={employees}
-        onUpdate={(updatedTask) => handleUpdateTask(updatedTask, project.taskId)}
+        onUpdate={async (updatedTask) => {
+
+          const token = localStorage.getItem("token");
+
+          const status = statuses.find(s => s.statusID === updatedTask.statusID)?.statusName;
+          const priority = priorities.find(p => p.priorityID === updatedTask.priorityID)?.priorityLevel;
+
+          await fetch(`http://localhost:5000/api/projects/${project.id}`, {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`
+            },
+            body: JSON.stringify({
+              title: updatedTask.title,
+              description: updatedTask.description,
+              status: status,
+              priority: priority,
+              dueDate: updatedTask.dueDate,
+              existingDocuments: updatedTask.documents,
+              timelines: (updatedTask.timeline || []).map(tl => ({
+                id: tl.id,
+                title: tl.title,
+                description: tl.description || '',
+                startDate: tl.startDate,
+                endDate: tl.endDate,
+                status: tl.status,
+                priority: tl.priority || 'Low'
+              }))
+            })
+          });
+
+          alert("Project updated successfully");
+
+          const firstUserId = Array.isArray(updatedTask.assignedToUserID) 
+            ? updatedTask.assignedToUserID[0] 
+            : updatedTask.assignedToUserID;
+          navigate(`/admin/summary/${firstUserId}`);
+        }}
         onCancel={() => navigate(-1)}
       />
     );

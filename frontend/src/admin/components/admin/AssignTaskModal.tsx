@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { X, Bell, UserPlus, Upload, FileText, Trash2 } from 'lucide-react';
-import { Task, Employee, Priority, Status, TaskDocument } from '../../App';
+import { Task, Employee, Priority, Status, TaskDocument, ProjectTimeline } from '../../App';
 
 interface AssignTaskModalProps {
   employeeId?: string; // Optional - if not provided, can select multiple employees
@@ -32,7 +32,17 @@ export function AssignTaskModal({
     dueDate: '',
   });
   const [showNotification, setShowNotification] = useState(false);
-  const [documents, setDocuments] = useState<TaskDocument[]>([]);
+  const [documents, setDocuments] = useState<any[]>([]);
+  const [timelines, setTimelines] = useState<ProjectTimeline[]>([]);
+  const [newTimeline, setNewTimeline] = useState({
+    title: '',
+    description: '',
+    startDate: '',
+    endDate: '',
+    status: 'To Do',
+    priority: 'Not set',
+  });
+  const [showAddTimeline, setShowAddTimeline] = useState(false);
 
   const toggleEmployee = (empId: string) => {
     if (selectedEmployees.includes(empId)) {
@@ -44,28 +54,57 @@ export function AssignTaskModal({
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
-    if (!files || files.length === 0) return;
+    if (!files) return;
 
-    Array.from(files).forEach(file => {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const document: TaskDocument = {
-          documentID: `doc${Date.now()}-${Math.random()}`,
-          fileName: file.name,
-          fileSize: file.size,
-          fileType: file.type,
-          uploadedBy: adminId,
-          uploadedDate: new Date().toISOString().split('T')[0],
-          fileData: event.target?.result as string,
-        };
-        setDocuments(prev => [...prev, document]);
-      };
-      reader.readAsDataURL(file);
-    });
+    const newDocs = Array.from(files).map(file => ({
+      documentID: `doc-${Date.now()}-${Math.random()}`,
+      fileName: file.name,
+      fileSize: file.size,
+      fileType: file.type,
+      uploadedBy: adminId,
+      uploadedDate: new Date().toISOString(),
+      fileObject: file // ✅ STORE REAL FILE
+    }));
+
+    setDocuments(prev => [...prev, ...newDocs]);
   };
 
   const handleDeleteDocument = (documentId: string) => {
     setDocuments(documents.filter(d => d.documentID !== documentId));
+  };
+
+  const handleAddTimeline = () => {
+    if (!newTimeline.title || !newTimeline.startDate || !newTimeline.endDate) {
+      alert('Please fill in all timeline fields');
+      return;
+    }
+
+    const timeline: ProjectTimeline = {
+      id: "new-" + Date.now(),
+      title: newTimeline.title,
+      description: newTimeline.description,
+      startDate: newTimeline.startDate,
+      endDate: newTimeline.endDate,
+      status: newTimeline.status,
+      priority: newTimeline.priority || 'Not set',
+    };
+
+    setTimelines(prev => [...prev, timeline]);
+
+    setNewTimeline({
+      title: '',
+      description: '',
+      startDate: '',
+      endDate: '',
+      status: 'To Do',
+      priority: 'Not set',
+    });
+
+    setShowAddTimeline(false);
+  };
+
+  const handleDeleteTimeline = (id: string) => {
+    setTimelines(timelines.filter(t => t.id !== id));
   };
 
   const formatFileSize = (bytes: number): string => {
@@ -76,7 +115,32 @@ export function AssignTaskModal({
     return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const formatDateTimeForDisplay = (datetimeString: string) => {
+    if (!datetimeString) return '';
+    const date = new Date(datetimeString);
+    return date.toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
+  const getStatusColor = (status: ProjectTimeline['status']) => {
+    switch (status) {
+      case 'Completed':
+        return 'bg-gray-200 text-gray-800';
+      case 'In Progress':
+        return 'bg-gray-800 text-white';
+      case 'Revision Required':
+        return 'bg-red-100 text-red-800 border border-red-300';
+      default:
+        return 'bg-gray-100 text-gray-700';
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!formData.title || !formData.description || !formData.dueDate || selectedEmployees.length === 0) {
@@ -84,29 +148,73 @@ export function AssignTaskModal({
       return;
     }
 
-    const newTask: Task = {
-      taskID: Date.now().toString(),
-      title: formData.title,
-      description: formData.description,
-      assignedToUserID: selectedEmployees.length === 1 ? selectedEmployees[0] : selectedEmployees,
-      reportedByUserID: adminId,
-      statusID: formData.statusID,
-      priorityID: formData.priorityID,
-      createdDate: new Date().toISOString().split('T')[0],
-      dueDate: formData.dueDate,
-      completedDate: null,
-      documents: documents,
-      timeline: [],
-    };
+    // Multi-assign mode check
+    if (selectedEmployees.length > 1) {
+      console.log("MULTI ASSIGN MODE");
+    }
 
-    onAssign(newTask);
+    const token = localStorage.getItem("token");
     
-    // Show notification confirmation
-    setShowNotification(true);
-    setTimeout(() => {
-      setShowNotification(false);
-      onClose();
-    }, 2000);
+    // Prepare final timelines
+    const finalTimelines = [...timelines];
+    console.log("TIMELINES SENDING:", finalTimelines);
+    
+    // Prepare files
+    const files = documents.map(doc => doc.fileObject);
+
+    try {
+      const formDataToSend = new FormData();
+
+      formDataToSend.append("title", formData.title);
+      formDataToSend.append("description", formData.description);
+      formDataToSend.append("dueDate", formData.dueDate);
+      // Send all selected employees as JSON array
+      formDataToSend.append("assignedUserId", JSON.stringify(selectedEmployees));
+      formDataToSend.append(
+        "status",
+        statuses.find(s => s.statusID === formData.statusID)?.statusName || 'To Do'
+      );
+      formDataToSend.append(
+        "priority",
+        priorities.find(p => p.priorityID === formData.priorityID)?.priorityLevel || 'Not set'
+      );
+
+      // Append timelines as JSON
+      formDataToSend.append("timelines", JSON.stringify(finalTimelines));
+
+      // Append real files only
+      files.forEach(file => {
+        if (file) {
+          formDataToSend.append("documents", file);
+        }
+      });
+
+      const response = await fetch("http://localhost:5000/api/projects", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formDataToSend,
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to create project`);
+      }
+
+      const newProjectData = await response.json();
+      console.log(`Project created successfully for users:`, selectedEmployees);
+      
+      // Show notification confirmation
+      setShowNotification(true);
+      setTimeout(() => {
+        setShowNotification(false);
+        // Just close modal after success
+        onClose();
+      }, 2000);
+    } catch (error) {
+      console.error('Error creating project:', error);
+      alert('Failed to create project. Please try again.');
+    }
   };
 
   return (
@@ -197,12 +305,12 @@ export function AssignTaskModal({
               Due Date <span className="text-red-600">*</span>
             </label>
             <input
-              type="date"
+              type="datetime-local"
               value={formData.dueDate}
               onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
               required
-              min={new Date().toISOString().split('T')[0]}
+              min={new Date().toISOString().slice(0, 16)}
             />
           </div>
 
@@ -237,6 +345,157 @@ export function AssignTaskModal({
             <p className="text-gray-600 text-sm mt-2">
               {selectedEmployees.length} employee{selectedEmployees.length !== 1 ? 's' : ''} selected
             </p>
+          </div>
+
+          {/* Project Progress Timeline */}
+          <div className="border-t border-gray-300 pt-4">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-gray-900">Project Progress Timeline</h4>
+              <button
+                type="button"
+                onClick={() => setShowAddTimeline(!showAddTimeline)}
+                className="px-3 py-1 bg-gray-800 text-white rounded"
+              >
+                + Add Timeline
+              </button>
+            </div>
+
+            {/* Add Timeline Form */}
+            {showAddTimeline && (
+              <div className="bg-gray-50 border p-4 rounded mb-3 space-y-3">
+                <input
+                  type="text"
+                  placeholder="Title"
+                  value={newTimeline.title}
+                  onChange={(e) => setNewTimeline({ ...newTimeline, title: e.target.value })}
+                  className="w-full border p-2 rounded"
+                />
+
+                <textarea
+                  placeholder="Description"
+                  value={newTimeline.description}
+                  onChange={(e) => setNewTimeline({ ...newTimeline, description: e.target.value })}
+                  className="w-full border p-2 rounded"
+                />
+
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="datetime-local"
+                    value={newTimeline.startDate}
+                    onChange={(e) => setNewTimeline({ ...newTimeline, startDate: e.target.value })}
+                    className="border p-2 rounded"
+                  />
+                  <input
+                    type="datetime-local"
+                    value={newTimeline.endDate}
+                    onChange={(e) => setNewTimeline({ ...newTimeline, endDate: e.target.value })}
+                    className="border p-2 rounded"
+                  />
+                </div>
+
+                <select
+                  value={newTimeline.status}
+                  onChange={(e) => setNewTimeline({ ...newTimeline, status: e.target.value })}
+                  className="w-full border p-2 rounded"
+                >
+                  <option>To Do</option>
+                  <option>In Progress</option>
+                  <option>Completed</option>
+                  <option>Revision Required</option>
+                </select>
+
+                {/* Priority dropdown */}
+                <select
+                  value={newTimeline.priority}
+                  onChange={(e) => setNewTimeline({ 
+                    ...newTimeline, 
+                    priority: e.target.value as 'Not set' | 'Low' | 'Medium' | 'High'
+                  })}
+                  className="w-full border p-2 rounded"
+                >
+                  <option value="Not set">Not set</option>
+                  <option value="Low">Low</option>
+                  <option value="Medium">Medium</option>
+                  <option value="High">High</option>
+                </select>
+
+                <div className="flex gap-2">
+                  <button onClick={handleAddTimeline} className="bg-gray-800 text-white px-3 py-1 rounded">
+                    Add
+                  </button>
+                  <button onClick={() => setShowAddTimeline(false)} className="border px-3 py-1 rounded">
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Timeline List - UPDATED VERSION */}
+            {timelines.length === 0 ? (
+              <div className="text-gray-500 text-sm">No timeline entries added yet</div>
+            ) : (
+              <div className="space-y-3">
+                {timelines.map((timeline) => (
+                  <div
+                    key={timeline.id}
+                    className="bg-gray-50 border border-gray-200 rounded-lg p-4"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        
+                        {/* Title */}
+                        <div className="text-gray-900 mb-2">{timeline.title}</div>
+
+                        {/* Description */}
+                        {timeline.description && (
+                          <div className="text-gray-700 text-sm mb-2 whitespace-pre-wrap">
+                            {timeline.description}
+                          </div>
+                        )}
+
+                        {/* 🔥 Start & End Date */}
+                        <div className="grid grid-cols-2 gap-4 text-sm">
+                          <div>
+                            <span className="text-gray-600">Start: </span>
+                            <span className="text-gray-900">
+                              {formatDateTimeForDisplay(timeline.startDate)}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-gray-600">End: </span>
+                            <span className="text-gray-900">
+                              {formatDateTimeForDisplay(timeline.endDate)}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Status + Priority */}
+                        <div className="mt-2 flex gap-2">
+                          <span className={`px-2 py-1 rounded text-xs ${getStatusColor(timeline.status)}`}>
+                            {timeline.status}
+                          </span>
+
+                          {timeline.priority && timeline.priority !== 'Not set' && (
+                            <span className="px-2 py-1 rounded text-xs bg-gray-100 text-gray-700 border border-gray-300">
+                              Priority: {timeline.priority}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Delete Button */}
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteTimeline(timeline.id)}
+                        className="ml-4 p-2 text-red-600 hover:text-red-700"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Document Upload */}

@@ -161,87 +161,154 @@ router.get("/priorities", authenticate, authorizeAdmin, async (req, res) => {
   }
 });
 
-// Get projects assigned to a specific user (admin only)
-router.get("/projects/user/:userId", authenticate, authorizeAdmin, async (req, res) => {
-  try {
-    const { userId } = req.params;
-
-    const result = await pool.query(`
-      SELECT
-        p.project_id AS "projectId",
-        p.task_id AS "taskId",
-        p.title,
-        p.description,
-        t.status_id AS "statusID",
-        t.priority_id AS "priorityID",
-        p.created_at AS "createdDate",
-        p.due_date AS "dueDate",
-        COALESCE(p.documents, '[]') AS documents,
-        COALESCE(p.timelines, '[]') AS timelines,
-        p.approval_status AS "approvalStatus",
-        u.public_user_id AS "assignedToUserID"
-      FROM projects p
-      JOIN tasks t ON p.task_id = t.task_id
-      JOIN users u ON t.assigned_to_user_id = u.user_id
-      WHERE u.public_user_id = $1
-      ORDER BY p.created_at DESC
-    `, [userId]);
-
-    // Parse JSON strings for documents and timelines
-    result.rows.forEach(p => {
-      if (typeof p.documents === "string") {
-        p.documents = JSON.parse(p.documents);
-      }
-      if (typeof p.timelines === "string") {
-        p.timelines = JSON.parse(p.timelines);
-      }
-    });
-
-    res.json(result.rows);
-  } catch (err) {
-    console.error("Admin /projects/user/:userId error:", err);
-    res.status(500).json({ error: 'Failed to load projects' });
-  }
-});
-
-// Get all projects (admin only) with user details
+// Get all projects (admin only) with user details and timelines
 router.get("/projects", authenticate, authorizeAdmin, async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT
         p.id,
         p.project_id AS "projectId",
-        p.task_id AS "taskId",
+        (
+          SELECT COALESCE(json_agg(u.public_user_id), '[]')
+          FROM project_assignments pa
+          JOIN users u ON pa.user_id = u.user_id
+          WHERE pa.project_id = p.id
+        ) AS "assignedToUserIDs",
         p.title,
         p.description,
-        t.status_id AS "statusID",
-        t.priority_id AS "priorityID",
+        p.status_id AS "statusID",
+        s.status_name AS "status",
+        p.priority_id AS "priorityID",
+        pr.priority_level AS "priority",
         p.created_at AS "createdDate",
         p.due_date AS "dueDate",
-        COALESCE(p.documents, '[]') AS documents,
-        COALESCE(p.timelines, '[]') AS timelines,
         p.approval_status AS "approvalStatus",
-        u.public_user_id AS "assignedToUserID"
+        COALESCE(p.documents, '[]') AS documents,
+        (
+          SELECT COALESCE(json_agg(
+            jsonb_build_object(
+              'id', m.milestone_id,
+              'title', m.title,
+              'description', m.description,
+              'startDate', m.start_date,
+              'endDate', m.end_date,
+              'status', s2.status_name,
+              'priority', pr2.priority_level
+            )
+          ), '[]')
+          FROM project_milestones m
+          LEFT JOIN status s2 ON m.status_id = s2.status_id
+          LEFT JOIN priority pr2 ON m.priority_id = pr2.priority_id
+          WHERE m.project_id = p.id
+        ) AS timelines
       FROM projects p
-      JOIN tasks t ON p.task_id = t.task_id
-      JOIN users u ON t.assigned_to_user_id = u.user_id
+      LEFT JOIN status s ON p.status_id = s.status_id
+      LEFT JOIN priority pr ON p.priority_id = pr.priority_id
       ORDER BY p.created_at DESC
     `);
 
-    // Parse JSON strings for documents and timelines
-    result.rows.forEach(p => {
-      if (typeof p.documents === "string") {
-        p.documents = JSON.parse(p.documents);
+    result.rows.forEach(project => {
+      if (typeof project.documents === "string") {
+        project.documents = JSON.parse(project.documents);
       }
-      if (typeof p.timelines === "string") {
-        p.timelines = JSON.parse(p.timelines);
+      
+      // Transform document URLs to use server uploads folder
+      project.documents = project.documents.map(doc => ({
+        ...doc,
+        fileData: doc.fileData?.startsWith('http')
+          ? doc.fileData
+          : `http://localhost:5000/uploads/${doc.fileStoreName}`
+      }));
+
+      if (typeof project.timelines === "string") {
+        project.timelines = JSON.parse(project.timelines);
       }
     });
 
     res.json(result.rows);
+
   } catch (err) {
     console.error("Admin /projects error:", err);
     res.status(500).json({ message: "Server error" });
+  }
+});
+
+// Get projects assigned to a specific user (admin only) with timelines
+router.get("/projects/user/:userId", authenticate, authorizeAdmin, async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const result = await pool.query(`
+      SELECT
+        p.id,
+        p.project_id AS "projectId",
+        (
+          SELECT COALESCE(json_agg(u.public_user_id), '[]')
+          FROM project_assignments pa
+          JOIN users u ON pa.user_id = u.user_id
+          WHERE pa.project_id = p.id
+        ) AS "assignedToUserIDs",
+        p.title,
+        p.description,
+        p.status_id AS "statusID",
+        s.status_name AS "status",
+        p.priority_id AS "priorityID",
+        pr.priority_level AS "priority",
+        p.created_at AS "createdDate",
+        p.due_date AS "dueDate",
+        p.approval_status AS "approvalStatus",
+        COALESCE(p.documents, '[]') AS documents,
+        (
+          SELECT COALESCE(json_agg(
+            jsonb_build_object(
+              'id', m.milestone_id,
+              'title', m.title,
+              'description', m.description,
+              'startDate', m.start_date,
+              'endDate', m.end_date,
+              'status', s2.status_name,
+              'priority', pr2.priority_level
+            )
+          ), '[]')
+          FROM project_milestones m
+          LEFT JOIN status s2 ON m.status_id = s2.status_id
+          LEFT JOIN priority pr2 ON m.priority_id = pr2.priority_id
+          WHERE m.project_id = p.id
+        ) AS timelines
+      FROM projects p
+      LEFT JOIN status s ON p.status_id = s.status_id
+      LEFT JOIN priority pr ON p.priority_id = pr.priority_id
+      WHERE EXISTS (
+        SELECT 1 FROM project_assignments pa
+        JOIN users u ON pa.user_id = u.user_id
+        WHERE pa.project_id = p.id AND u.public_user_id = $1
+      )
+      ORDER BY p.created_at DESC
+    `, [userId]);
+
+    result.rows.forEach(project => {
+      if (typeof project.documents === "string") {
+        project.documents = JSON.parse(project.documents);
+      }
+      
+      // Transform document URLs to use server uploads folder
+      project.documents = project.documents.map(doc => ({
+        ...doc,
+        fileData: doc.fileData?.startsWith('http')
+          ? doc.fileData
+          : `http://localhost:5000/uploads/${doc.fileStoreName}`
+      }));
+
+      if (typeof project.timelines === "string") {
+        project.timelines = JSON.parse(project.timelines);
+      }
+    });
+
+    res.json(result.rows);
+
+  } catch (err) {
+    console.error("Admin /projects/user error:", err);
+    res.status(500).json({ error: "Failed to load projects" });
   }
 });
 

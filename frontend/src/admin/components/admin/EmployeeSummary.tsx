@@ -8,14 +8,27 @@ import { ProjectGanttChart } from './ProjectGanttChart';
 
 interface EmployeeSummaryProps {
   employees: Employee[];
-  projects?: Project[];
+  projects?: Project[]; // Make projects optional
   statuses: Status[];
   priorities: Priority[];
   roles: Role[];
-  onDeleteProject: (projectId: string) => void;
+  onDeleteProject: (projectId: string, dbId: number, mode?: "ALL" | "SELF", userId?: string) => void;
   onUpdateProject: (project: Project) => void;
   currentUserId: string;
+  fetchProjects?: () => Promise<void>; // Add fetchProjects prop
 }
+
+const formatDisplayDate = (date?: string) => {
+  if (!date) return 'N/A';
+
+  return new Date(date).toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
 
 export function EmployeeSummary({
   employees,
@@ -26,6 +39,7 @@ export function EmployeeSummary({
   onDeleteProject,
   onUpdateProject,
   currentUserId,
+  fetchProjects,
 }: EmployeeSummaryProps) {
   const { employeeId } = useParams<{ employeeId: string }>();
   const navigate = useNavigate();
@@ -58,14 +72,24 @@ export function EmployeeSummary({
     ? employees.find(e => e.userID === employeeId)
     : employees[0];
 
+  // Create unique projects map to avoid duplicates
+  const uniqueProjects = useMemo(() => {
+    const map = new Map();
+    (projects || []).forEach(p => {
+      map.set(p.projectId, p);
+    });
+    return Array.from(map.values());
+  }, [projects]);
+
   // Filter projects for the selected employee using employeeId from URL - memoized for performance
   const employeeProjects = useMemo(() => {
-    return (projects ?? []).filter(p => {
-      const projectUser = String(p.assignedToUserID).trim();
-      const selectedUser = String(employeeId).trim();
-      return projectUser.toLowerCase() === selectedUser.toLowerCase();
+    return uniqueProjects.filter(p => {
+      // Check if assignedToUserIDs is an array and includes the current employeeId with case-insensitive comparison
+      return (p.assignedToUserIDs || []).some(
+        id => id?.trim().toLowerCase() === employeeId?.trim().toLowerCase()
+      );
     });
-  }, [projects, employeeId]);
+  }, [uniqueProjects, employeeId]);
 
   // Debug log to see employee projects
   console.log("EMPLOYEE PROJECTS:", employeeProjects);
@@ -81,6 +105,15 @@ export function EmployeeSummary({
       );
       
       const isCompleted = status?.statusName === 'Completed';
+      
+      // 🔥 ADD THIS BLOCK - Hide completed and approved projects from active view
+      if (
+        viewMode === 'active' &&
+        isCompleted &&
+        project.approvalStatus === 'Approved'
+      ) {
+        return false;
+      }
       
       // View mode filter - for historical, only show completed AND approved
       if (viewMode === 'historical') {
@@ -353,6 +386,7 @@ export function EmployeeSummary({
                       statuses={statuses}
                       employees={employees}
                       onDelete={onDeleteProject}
+                      fetchProjects={fetchProjects}
                     />
                   ))}
                 </div>
@@ -376,6 +410,7 @@ export function EmployeeSummary({
                       statuses={statuses}
                       employees={employees}
                       onDelete={onDeleteProject}
+                      fetchProjects={fetchProjects}
                     />
                   ))}
                 </div>
@@ -399,6 +434,7 @@ export function EmployeeSummary({
                       statuses={statuses}
                       employees={employees}
                       onDelete={onDeleteProject}
+                      fetchProjects={fetchProjects}
                     />
                   ))}
                 </div>
@@ -422,6 +458,7 @@ export function EmployeeSummary({
                       statuses={statuses}
                       employees={employees}
                       onDelete={onDeleteProject}
+                      fetchProjects={fetchProjects}
                     />
                   ))}
                 </div>
@@ -513,12 +550,16 @@ interface ProjectCardProps {
   priorities: Priority[];
   statuses: Status[];
   employees: Employee[];
-  onDelete: (projectId: string) => void;
+  onDelete: (projectId: string, dbId: number, mode?: "ALL" | "SELF", userId?: string) => void;
+  fetchProjects?: () => Promise<void>;
 }
 
-function ProjectCard({ project, priorities, statuses, employees, onDelete }: ProjectCardProps) {
+function ProjectCard({ project, priorities, statuses, employees, onDelete, fetchProjects }: ProjectCardProps) {
   const navigate = useNavigate();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showUserSelectModal, setShowUserSelectModal] = useState(false);
+  const [showRejectConfirm, setShowRejectConfirm] = useState(false);
+  const [showApproveConfirm, setShowApproveConfirm] = useState(false); // ✅ ADD THIS
   const priority = priorities.find(p => p.priorityID === project.priorityID);
   const status = statuses.find(s => s.statusID === project.statusID);
 
@@ -528,8 +569,17 @@ function ProjectCard({ project, priorities, statuses, employees, onDelete }: Pro
     Low: 'bg-gray-100 text-gray-600 border-gray-300',
   };
 
+  const isCompleted = status?.statusName === 'Completed';
+
   const handleDelete = () => {
-    onDelete(project.projectId);
+    const isMultiAssigned = (project.assignedToUserIDs || []).length > 1;
+
+    if (isMultiAssigned) {
+      setShowUserSelectModal(true);
+    } else {
+      onDelete(project.projectId, project.id, "ALL");
+    }
+
     setShowDeleteConfirm(false);
   };
 
@@ -550,32 +600,52 @@ function ProjectCard({ project, priorities, statuses, employees, onDelete }: Pro
         <div className="space-y-1 text-sm text-gray-600">
           <div className="flex items-center gap-2">
             <Calendar className="w-4 h-4" />
-            <span>Due: {project.dueDate}</span>
+            <span>Due: {formatDisplayDate(project.dueDate)}</span>
           </div>
           {project.completedDate && (
             <div className="flex items-center gap-2">
               <Clock className="w-4 h-4" />
-              <span>Completed: {project.completedDate}</span>
+              <span>Completed: {formatDisplayDate(project.completedDate)}</span>
             </div>
           )}
         </div>
       </div>
 
-      <div className="flex gap-2 mt-4">
+      <div className="grid grid-cols-2 gap-2 mt-4">
         <button
-          onClick={() => navigate(`/admin/update/${project.taskId}`)}
-          className="flex-1 px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm"
+          onClick={() => navigate(`/admin/update/${project.projectId}`)}
+          className="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm"
         >
           Update
         </button>
 
         <button
           onClick={() => setShowDeleteConfirm(true)}
-          className="px-3 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm"
+          className="px-3 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm flex justify-center items-center"
           title="Delete Project"
         >
           <Trash2 className="w-4 h-4" />
         </button>
+
+        {/* Approval Buttons for Completed Projects Pending Approval */}
+        {isCompleted && (project.approvalStatus === 'Pending' || !project.approvalStatus) && (
+          <>
+            <button
+              onClick={() => setShowApproveConfirm(true)}  // ✅ CHANGED
+              className="px-3 py-2 text-white rounded-lg text-sm font-medium"
+              style={{ backgroundColor: '#16a34a' }}
+            >
+              Approve
+            </button>
+
+            <button
+              onClick={() => setShowRejectConfirm(true)}
+              className="px-3 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 text-sm"
+            >
+              Reject
+            </button>
+          </>
+        )}
       </div>
 
       {/* Delete Confirmation */}
@@ -603,6 +673,140 @@ function ProjectCard({ project, priorities, statuses, employees, onDelete }: Pro
           </div>
         </div>
       )}
+
+      {/* Approve Confirmation Modal */}
+      {showApproveConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg p-6 max-w-sm w-full">
+            <h3 className="text-gray-900 mb-2">Approve Project?</h3>
+            <p className="text-gray-600 mb-4">
+              This will mark <b>"{project.title}"</b> as <b>Approved</b> and move it to Historical Workload.
+            </p>
+
+            <div className="flex gap-3">
+              <button
+                onClick={async () => {
+                  const token = localStorage.getItem("token");
+                  await fetch(`http://localhost:5000/api/projects/${project.id}/approval`, {
+                    method: "PUT",
+                    headers: {
+                      "Content-Type": "application/json",
+                      Authorization: `Bearer ${token}`,
+                    },
+                    body: JSON.stringify({ action: "approve" }),
+                  });
+                  setShowApproveConfirm(false);
+                  if (fetchProjects) await fetchProjects();
+                }}
+                className="flex-1 px-4 py-2 text-white rounded-lg font-medium"
+                style={{ backgroundColor: '#16a34a' }}
+              >
+                Confirm
+              </button>
+
+              <button
+                onClick={() => setShowApproveConfirm(false)}
+                className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reject Confirmation Modal */}
+      {showRejectConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg p-6 max-w-sm w-full">
+            <h3 className="text-gray-900 mb-2">Reject Project?</h3>
+            <p className="text-gray-600 mb-4">
+              This will move the project to <b>Revision Required</b>.
+            </p>
+
+            <div className="flex gap-3">
+              <button
+                onClick={async () => {
+                  const token = localStorage.getItem("token");
+
+                  await fetch(
+                    `http://localhost:5000/api/projects/${project.id}/approval`,
+                    {
+                      method: "PUT",
+                      headers: {
+                        "Content-Type": "application/json",
+                        Authorization: `Bearer ${token}`,
+                      },
+                      body: JSON.stringify({ action: "reject" }),
+                    }
+                  );
+
+                  setShowRejectConfirm(false);
+                  if (fetchProjects) await fetchProjects();
+                }}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg"
+              >
+                Confirm
+              </button>
+
+              <button
+                onClick={() => setShowRejectConfirm(false)}
+                className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* User Selection Modal for Multi-Assigned Projects */}
+      {showUserSelectModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg w-96">
+            <h3 className="text-gray-900 mb-4">Remove Users from Project</h3>
+
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {project.assignedToUserIDs.map(userId => {
+                const user = employees.find(e => e.userID === userId);
+
+                return (
+                  <div key={userId} className="flex justify-between items-center p-2 hover:bg-gray-50 rounded">
+                    <span className="text-gray-900">{user?.name}</span>
+                    <button
+                      onClick={() => {
+                        onDelete(project.projectId, project.id, "SELF", userId);
+                        setShowUserSelectModal(false);
+                      }}
+                      className="text-red-600 hover:text-red-700 text-sm px-2 py-1 rounded hover:bg-red-50 transition-colors"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="border-t border-gray-300 mt-4 pt-4">
+              <button
+                onClick={() => {
+                  onDelete(project.projectId, project.id, "ALL");
+                  setShowUserSelectModal(false);
+                }}
+                className="w-full bg-red-600 text-white py-2 rounded hover:bg-red-700 transition-colors"
+              >
+                Delete Entire Project
+              </button>
+              <button
+                onClick={() => setShowUserSelectModal(false)}
+                className="w-full mt-2 bg-gray-200 text-gray-700 py-2 rounded hover:bg-gray-300 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -616,7 +820,9 @@ interface ProjectDetailsModalProps {
 
 function ProjectDetailsModal({ project, priorities, employees, onClose }: ProjectDetailsModalProps) {
   const priority = priorities.find(p => p.priorityID === project.priorityID);
-  const assignedTo = employees.find(e => e.userID === project.assignedToUserID);
+  const assignedEmployees = project.assignedToUserIDs && Array.isArray(project.assignedToUserIDs)
+    ? employees.filter(e => project.assignedToUserIDs.includes(e.userID))
+    : [];
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
@@ -650,19 +856,25 @@ function ProjectDetailsModal({ project, priorities, employees, onClose }: Projec
             </div>
             <div>
               <p className="text-gray-600 text-sm mb-1">Assigned To</p>
-              <p className="text-gray-900">{assignedTo?.name}</p>
+              <div className="space-y-1">
+                {assignedEmployees.map(emp => (
+                  <p key={emp.userID} className="text-gray-900">{emp.name}</p>
+                ))}
+              </div>
             </div>
             <div>
               <p className="text-gray-600 text-sm mb-1">Due Date</p>
-              <p className="text-gray-900">{project.dueDate}</p>
+              <p className="text-gray-900">{formatDisplayDate(project.dueDate)}</p>
             </div>
             <div>
               <p className="text-gray-600 text-sm mb-1">Created Date</p>
-              <p className="text-gray-900">{project.createdDate}</p>
+              <p className="text-gray-900">{formatDisplayDate(project.createdDate)}</p>
             </div>
             <div>
               <p className="text-gray-600 text-sm mb-1">Completed Date</p>
-              <p className="text-gray-900">{project.completedDate || 'N/A'}</p>
+              <p className="text-gray-900">
+                {project.completedDate ? formatDisplayDate(project.completedDate) : 'N/A'}
+              </p>
             </div>
             <div>
               <p className="text-gray-600 text-sm mb-1">Approval Status</p>

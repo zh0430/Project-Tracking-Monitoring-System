@@ -90,10 +90,10 @@ export function GanttChartTracking({
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   };
 
-  // Initialize with date range (from/to months)
-  const currentMonth = getCurrentMonth();
-  const [fromMonth, setFromMonth] = useState<string>(currentMonth);
-  const [toMonth, setToMonth] = useState<string>(currentMonth);
+  // Initialize with date range (from/to months) - default to full year
+  const currentYear = new Date().getFullYear();
+  const [fromMonth, setFromMonth] = useState<string>(`${currentYear}-01`);
+  const [toMonth, setToMonth] = useState<string>(`${currentYear}-12`);
 
   // Calculate active year based on projects
   const activeYear = useMemo(() => {
@@ -201,14 +201,20 @@ export function GanttChartTracking({
       );
     }
 
-    // date range filter
+    // date range filter - check both project dates and timeline dates
     filtered = filtered.filter(project => {
-      if (!project.createdAt) return false;
+      // If project has timelines, check if any timeline falls within the date range
+      if (project.timelines && project.timelines.length > 0) {
+        return project.timelines.some(t => {
+          const start = new Date(t.startDate);
+          const end = new Date(t.endDate);
+          return end >= dateRange.start && start <= dateRange.end;
+        });
+      }
 
-      const start = new Date(project.createdAt);
-      const end = project.dueDate
-        ? new Date(project.dueDate)
-        : dateRange.end; // assume runs until end of range
+      // If no timelines, fall back to project's own dates
+      const start = project.createdAt ? new Date(project.createdAt) : dateRange.start;
+      const end = project.dueDate ? new Date(project.dueDate) : dateRange.end;
 
       return end >= dateRange.start && start <= dateRange.end;
     });
@@ -227,9 +233,9 @@ export function GanttChartTracking({
 
   const clearFilters = () => {
     setSearchProjectId('');
-    const current = getCurrentMonth();
-    setFromMonth(current);
-    setToMonth(current);
+    const currentYear = new Date().getFullYear();
+    setFromMonth(`${currentYear}-01`);
+    setToMonth(`${currentYear}-12`);
   };
 
   // Capture Gantt chart as image
@@ -443,7 +449,9 @@ export function GanttChartTracking({
   };
 
   // Check if any filters are active
-  const hasActiveFilters = searchProjectId || fromMonth !== currentMonth || toMonth !== currentMonth;
+  const hasActiveFilters = searchProjectId || 
+    fromMonth !== `${new Date().getFullYear()}-01` || 
+    toMonth !== `${new Date().getFullYear()}-12`;
 
   // Close export menu when clicking outside
   const handleClickOutside = (e: React.MouseEvent) => {
@@ -592,7 +600,7 @@ export function GanttChartTracking({
                     </button>
                   </span>
                 )}
-                {(fromMonth !== currentMonth || toMonth !== currentMonth) && (
+                {(fromMonth !== `${new Date().getFullYear()}-01` || toMonth !== `${new Date().getFullYear()}-12`) && (
                   <span className="inline-flex items-center gap-1 px-3 py-1 bg-red-100 text-red-700 rounded-full text-sm">
                     Range:
                     {new Date(fromMonth + '-01').toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
@@ -830,7 +838,7 @@ export function GanttChartTracking({
                   <Calendar className="w-12 h-12 text-gray-400 mx-auto mb-3" />
                   <p className="text-gray-900 mb-1">No active projects found</p>
                   <p className="text-sm">
-                    {searchProjectId || fromMonth !== currentMonth || toMonth !== currentMonth
+                    {searchProjectId || fromMonth !== `${new Date().getFullYear()}-01` || toMonth !== `${new Date().getFullYear()}-12`
                       ? 'Try adjusting your search filters' 
                       : 'You currently have no active projects assigned to you in the selected date range'}
                   </p>
