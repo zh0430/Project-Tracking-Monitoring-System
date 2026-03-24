@@ -941,7 +941,7 @@ export default function AdminApp() {
               path="gantt"
               element={
                 <TeamGanttChart
-                  tasks={tasks}
+                  projects={projects}
                   employees={employees}
                   statuses={statuses}
                   priorities={priorities}
