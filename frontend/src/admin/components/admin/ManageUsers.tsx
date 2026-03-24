@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Employee, Role, Task, Priority, Status } from '../../App';
+import { Employee, Role, Task, Priority, Status, Project } from '../../App';
 import { Plus, Download } from 'lucide-react';
 import { AssignTaskModal } from './AssignTaskModal';
 import { exportAllTasksToExcel } from '../../utils/excelExport';
@@ -13,6 +13,7 @@ interface ManageUsersProps {
   employees: Employee[];
   roles: Role[];
   tasks: Task[];
+  projects: Project[];
   priorities: Priority[];
   statuses: Status[];
   onUpdateEmployee: (employee: Employee) => void;
@@ -24,6 +25,7 @@ export function ManageUsers({
   employees, 
   roles, 
   tasks, 
+  projects,
   priorities,
   statuses,
   onUpdateEmployee,
@@ -93,21 +95,25 @@ export function ManageUsers({
 
   const handleExport = (type: "excel" | "pdf" | "word") => {
     const data = sortedEmployees.map(employee => {
-      const employeeTasks = tasks.filter(t => {
-        if (Array.isArray(t.assignedToUserID)) {
-          return t.assignedToUserID.includes(employee.userID);
-        }
-        return t.assignedToUserID === employee.userID;
-      });
+      const employeeProjects = projects.filter(p => {
+        const isAssigned = (p.assignedToUserIDs || []).includes(employee.userID);
+        if (!isAssigned) return false;
 
-      const role = roles.find(r => r.roleID === employee.roleID);
+        const status = statuses.find(s => s.statusID === p.statusID);
+        const isCompleted = status?.statusName === 'Completed';
+
+        if (isCompleted && p.approvalStatus === 'Approved') {
+          return false;
+        }
+
+        return true;
+      });
 
       return {
         userID: employee.userID,
         name: employee.name,
         email: employee.email,
-        role: role?.roleName || "",
-        projects: employeeTasks.length,
+        projects: employeeProjects.length,
       };
     });
 
@@ -200,20 +206,30 @@ export function ManageUsers({
               <th className="px-6 py-3 text-left text-gray-700">User ID</th>
               <th className="px-6 py-3 text-left text-gray-700">Name</th>
               <th className="px-6 py-3 text-left text-gray-700">Email</th>
-              <th className="px-6 py-3 text-left text-gray-700">Role</th>
-              <th className="px-6 py-3 text-left text-gray-700">Projects Assigned</th>
+              <th className="px-6 py-3 text-center text-gray-700">Projects Assigned</th>
               <th className="px-6 py-3 text-left text-gray-700">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-300">
             {sortedEmployees.map(employee => {
-              const employeeTasks = tasks.filter(t => {
-                if (Array.isArray(t.assignedToUserID)) {
-                  return t.assignedToUserID.includes(employee.userID);
+              const employeeProjects = projects.filter(p => {
+                // match assigned users
+                const isAssigned = (p.assignedToUserIDs || []).includes(employee.userID);
+
+                if (!isAssigned) return false;
+
+                // find status
+                const status = statuses.find(s => s.statusID === p.statusID);
+
+                const isCompleted = status?.statusName === 'Completed';
+
+                // ❌ EXCLUDE historical (Completed + Approved)
+                if (isCompleted && p.approvalStatus === 'Approved') {
+                  return false;
                 }
-                return t.assignedToUserID === employee.userID;
+
+                return true;
               });
-              const role = roles.find(r => r.roleID === employee.roleID);
 
               return (
                 <tr key={employee.userID} className="hover:bg-gray-50">
@@ -224,12 +240,9 @@ export function ManageUsers({
                   <td className="px-6 py-4">
                     <span className="text-gray-700">{employee.email}</span>
                   </td>
-                  <td className="px-6 py-4">
-                    <span className="inline-flex px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm">
-                      {role?.roleName}
-                    </span>
+                  <td className="px-6 py-4 text-center text-gray-700">
+                    {employeeProjects.length}
                   </td>
-                  <td className="px-6 py-4 text-gray-700">{employeeTasks.length}</td>
                   <td className="px-6 py-4 flex gap-2">
                     <button
                       onClick={() => handleAssignWork(employee.userID)}

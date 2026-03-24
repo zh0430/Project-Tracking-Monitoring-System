@@ -878,6 +878,7 @@ export default function AdminApp() {
                   employees={employees}
                   roles={roles}
                   tasks={tasks}
+                  projects={projects}
                   priorities={priorities}
                   statuses={statuses}
                   onUpdateEmployee={handleUpdateEmployee}
