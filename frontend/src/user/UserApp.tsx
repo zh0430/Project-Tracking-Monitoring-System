@@ -563,6 +563,7 @@ function MainUserApp() {
           element={
             <GanttChartTracking
               projects={projects}
+              user={user}
               onUpdateProject={handleUpdateProject}
               onDeleteProject={handleDeleteProject}
               onBack={() => navigate('/user/projects')}

@@ -11,18 +11,11 @@ import {
 
 interface GanttChartTrackingProps {
   projects: Project[];
+  user: User;
   onUpdateProject: (projectId: string, updates: Partial<Project>) => void;
   onDeleteProject: (projectId: string) => void;
   onBack: () => void;
 }
-
-// Mock employee data - in a real app, this would come from props
-const currentEmployee = {
-  userID: 'EMP001',
-  name: 'John Smith',
-  email: 'john.smith@company.com',
-  department: 'Software Development'
-};
 
 // Date formatting function
 const formatDisplayDate = (dateString?: string) => {
@@ -87,6 +80,7 @@ const formatExportDate = (date?: string) => {
 
 export function GanttChartTracking({
   projects,
+  user,
   onUpdateProject,
   onDeleteProject,
   onBack,
@@ -430,9 +424,9 @@ export function GanttChartTracking({
                 </label>
                 <div className="flex items-center gap-3 px-4 py-2 bg-gray-50 rounded-lg border border-gray-300">
                   <div className="w-8 h-8 bg-gray-800 text-white rounded-full flex items-center justify-center text-sm">
-                    {currentEmployee.name.charAt(0)}
+                    {user.fullName.charAt(0)}
                   </div>
-                  <span className="text-gray-900">{currentEmployee.name}</span>
+                  <span className="text-gray-900">{user.fullName}</span>
                 </div>
               </div>
 
@@ -584,10 +578,10 @@ export function GanttChartTracking({
                       <div className="w-80 p-3 border-r border-gray-300">
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 bg-gray-800 text-white rounded-full flex items-center justify-center">
-                            {currentEmployee.name.charAt(0)}
+                            {user.fullName.charAt(0)}
                           </div>
                           <div className="flex-1">
-                            <p className="text-gray-900">{currentEmployee.name}</p>
+                            <p className="text-gray-900">{user.fullName}</p>
                             <p className="text-gray-600 text-xs">{myProjects.length} active project{myProjects.length !== 1 ? 's' : ''}</p>
                           </div>
                         </div>
