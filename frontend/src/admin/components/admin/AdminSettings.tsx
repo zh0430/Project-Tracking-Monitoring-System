@@ -4,13 +4,14 @@ import { User, Mail, Phone, Building, Save, Upload, X } from 'lucide-react';
 
 interface AdminSettingsProps {
   admin: Admin;
-  onUpdate: (admin: Admin) => void;
+  onUpdate: (admin: Admin) => Promise<void>;
 }
 
 export function AdminSettings({ admin, onUpdate }: AdminSettingsProps) {
   const [formData, setFormData] = useState<Admin>({ ...admin });
   const [isEditing, setIsEditing] = useState(false);
   const [saveMessage, setSaveMessage] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
 
   const handleProfilePictureUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -32,11 +33,19 @@ export function AdminSettings({ admin, onUpdate }: AdminSettingsProps) {
     setFormData({ ...formData, profilePicture: undefined });
   };
 
-  const handleSave = () => {
-    onUpdate(formData);
-    setIsEditing(false);
-    setSaveMessage('Settings saved successfully!');
-    setTimeout(() => setSaveMessage(''), 3000);
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      await onUpdate(formData);
+      setIsEditing(false);
+      setSaveMessage('Settings saved successfully!');
+      setTimeout(() => setSaveMessage(''), 3000);
+    } catch (err) {
+      setSaveMessage('Failed to save settings');
+      setTimeout(() => setSaveMessage(''), 3000);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleCancel = () => {
@@ -61,9 +70,13 @@ export function AdminSettings({ admin, onUpdate }: AdminSettingsProps) {
         )}
       </div>
 
-      {/* Success Message */}
+      {/* Success/Error Message */}
       {saveMessage && (
-        <div className="bg-red-600 text-white px-4 py-3 rounded-lg">
+        <div className={`px-4 py-3 rounded-lg ${
+          saveMessage.includes('successfully') 
+            ? 'bg-red-600 text-white' 
+            : 'bg-red-100 text-red-700 border border-red-300'
+        }`}>
           {saveMessage}
         </div>
       )}
@@ -179,7 +192,7 @@ export function AdminSettings({ admin, onUpdate }: AdminSettingsProps) {
               </label>
               <input
                 type="tel"
-                value={formData.phone}
+                value={formData.phone || ''}
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                 disabled={!isEditing}
                 className={`w-full px-4 py-2 border border-gray-300 rounded-lg ${
@@ -198,7 +211,7 @@ export function AdminSettings({ admin, onUpdate }: AdminSettingsProps) {
               </label>
               <input
                 type="text"
-                value={formData.department}
+                value={formData.department || ''}
                 onChange={(e) => setFormData({ ...formData, department: e.target.value })}
                 disabled={!isEditing}
                 className={`w-full px-4 py-2 border border-gray-300 rounded-lg ${
@@ -215,10 +228,15 @@ export function AdminSettings({ admin, onUpdate }: AdminSettingsProps) {
             <div className="flex gap-3 pt-4 border-t border-gray-300">
               <button
                 onClick={handleSave}
-                className="flex items-center gap-2 px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                disabled={isSaving}
+                className={`flex items-center gap-2 px-6 py-2 bg-red-600 text-white rounded-lg transition-colors ${
+                  isSaving 
+                    ? 'opacity-50 cursor-not-allowed' 
+                    : 'hover:bg-red-700'
+                }`}
               >
                 <Save className="w-4 h-4" />
-                Save Changes
+                {isSaving ? 'Saving...' : 'Save Changes'}
               </button>
               <button
                 onClick={handleCancel}
@@ -228,34 +246,6 @@ export function AdminSettings({ admin, onUpdate }: AdminSettingsProps) {
               </button>
             </div>
           )}
-        </div>
-      </div>
-
-      {/* Additional Settings */}
-      <div className="bg-white rounded-lg border border-gray-300 p-6">
-        <h3 className="text-gray-900 mb-4">System Preferences</h3>
-        <div className="space-y-4">
-          <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-300">
-            <div>
-              <p className="text-gray-900">Email Notifications</p>
-              <p className="text-gray-600 text-sm">Receive email updates for task assignments</p>
-            </div>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input type="checkbox" defaultChecked className="sr-only peer" />
-              <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-red-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600"></div>
-            </label>
-          </div>
-
-          <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-300">
-            <div>
-              <p className="text-gray-900">Project Reminders</p>
-              <p className="text-gray-600 text-sm">Get reminders for upcoming deadlines</p>
-            </div>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input type="checkbox" defaultChecked className="sr-only peer" />
-              <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-red-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600"></div>
-            </label>
-          </div>
         </div>
       </div>
     </div>

@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { Task, Employee, Status, Priority, Role } from '../../App';
+import { Employee, Status, Priority, Role, Project } from '../../App';
 import { Users, ClipboardList, CheckCircle2, AlertCircle } from 'lucide-react';
-import { TaskDistributionChart } from './TaskDistributionChart';
-import { WorkloadByEmployeeChart } from './WorkloadByEmployeeChart';
+import { ProjectDistributionChart } from './ProjectDistributionChart';
+import { IncompleteProjectsChart } from './IncompleteProjectsChart';
 
 interface GlobalDashboardProps {
-  tasks: Task[];
+  projects: Project[];
   employees: Employee[];
   statuses: Status[];
   priorities: Priority[];
@@ -16,7 +16,7 @@ interface GlobalDashboardProps {
 type SortOption = 'NAME_ASC' | 'NAME_DESC' | 'WORKLOAD';
 
 export function GlobalDashboard({
-  tasks,
+  projects,
   employees,
   statuses,
   priorities,
@@ -25,21 +25,42 @@ export function GlobalDashboard({
 }: GlobalDashboardProps) {
   const [sortOption, setSortOption] = useState<SortOption>('NAME_ASC');
 
-  // Helper function to calculate active task count for an employee
+  // 🔥 UNIQUE PROJECTS (VERY IMPORTANT)
+  const uniqueProjects = Array.from(
+    new Map(projects.map(p => [p.projectId, p])).values()
+  );
+
+  // Filter out historical workload (completed AND approved projects)
+  const activeProjectsList = uniqueProjects.filter(p => {
+    const status = statuses.find(s => s.statusID === p.statusID);
+    const isCompleted = status?.statusName === 'Completed';
+
+    // ❌ EXCLUDE historical workload
+    if (isCompleted && p.approvalStatus === 'Approved') {
+      return false;
+    }
+
+    return true;
+  });
+
+  // Calculate metrics based on activeProjectsList
+  const completedProjects = activeProjectsList.filter(p => {
+    const status = statuses.find(s => s.statusID === p.statusID);
+    return status?.statusName === 'Completed';
+  }).length;
+
+  const activeProjects = activeProjectsList.length;
+
+  const highPriorityProjects = activeProjectsList.filter(p => {
+    const priority = priorities.find(pr => pr.priorityID === p.priorityID);
+    return priority?.priorityLevel === 'High';
+  }).length;
+
+  // Helper function to calculate active project count for an employee (FOR SORTING)
   const getActiveCount = (employeeId: string) => {
-    const employeeTasks = tasks.filter(t => {
-      if (Array.isArray(t.assignedToUserID)) {
-        return t.assignedToUserID.includes(employeeId);
-      }
-      return t.assignedToUserID === employeeId;
-    });
-
-    const completed = employeeTasks.filter(t => {
-      const status = statuses.find(s => s.statusID === t.statusID);
-      return status?.statusName === 'Completed';
-    }).length;
-
-    return employeeTasks.length - completed;
+    return activeProjectsList.filter(p =>
+      (p.assignedToUserIDs || []).includes(employeeId)
+    ).length;
   };
 
   // Sort employees based on selected sort option
@@ -58,19 +79,6 @@ export function GlobalDashboard({
 
     return 0;
   });
-
-  // Calculate metrics
-  const totalTasks = tasks.length;
-  const completedTasks = tasks.filter(t => {
-    const status = statuses.find(s => s.statusID === t.statusID);
-    return status?.statusName === 'Completed';
-  }).length;
-  const activeTasks = totalTasks - completedTasks;
-  const highPriorityTasks = tasks.filter(t => {
-    const priority = priorities.find(p => p.priorityID === t.priorityID);
-    const status = statuses.find(s => s.statusID === t.statusID);
-    return priority?.priorityLevel === 'High' && status?.statusName !== 'Completed';
-  }).length;
 
   return (
     <div className="space-y-6">
@@ -97,7 +105,7 @@ export function GlobalDashboard({
           <div className="flex items-center justify-between">
             <div>
               <p className="text-gray-600 text-sm">Active Projects</p>
-              <p className="text-gray-900 mt-1">{activeTasks}</p>
+              <p className="text-gray-900 mt-1">{activeProjects}</p>
             </div>
             <div className="w-12 h-12 bg-gray-200 rounded-lg flex items-center justify-center">
               <ClipboardList className="w-6 h-6 text-gray-700" />
@@ -109,7 +117,7 @@ export function GlobalDashboard({
           <div className="flex items-center justify-between">
             <div>
               <p className="text-gray-600 text-sm">Completed Projects</p>
-              <p className="text-gray-900 mt-1">{completedTasks}</p>
+              <p className="text-gray-900 mt-1">{completedProjects}</p>
             </div>
             <div className="w-12 h-12 bg-gray-200 rounded-lg flex items-center justify-center">
               <CheckCircle2 className="w-6 h-6 text-gray-700" />
@@ -121,7 +129,7 @@ export function GlobalDashboard({
           <div className="flex items-center justify-between">
             <div>
               <p className="text-gray-600 text-sm">High Priority</p>
-              <p className="text-gray-900 mt-1">{highPriorityTasks}</p>
+              <p className="text-gray-900 mt-1">{highPriorityProjects}</p>
             </div>
             <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
               <AlertCircle className="w-6 h-6 text-red-600" />
@@ -179,17 +187,18 @@ export function GlobalDashboard({
         <div className="divide-y divide-gray-300">
           {sortedEmployees.map(employee => {
             const role = roles.find(r => r.roleID === employee.roleID);
-            const employeeTasks = tasks.filter(t => {
-              if (Array.isArray(t.assignedToUserID)) {
-                return t.assignedToUserID.includes(employee.userID);
-              }
-              return t.assignedToUserID === employee.userID;
-            });
-            const completedCount = employeeTasks.filter(t => {
-              const status = statuses.find(s => s.statusID === t.statusID);
+            
+            // Get projects assigned to this employee from activeProjectsList
+            const employeeProjects = activeProjectsList.filter(p =>
+              (p.assignedToUserIDs || []).includes(employee.userID)
+            );
+            
+            const completedCount = employeeProjects.filter(p => {
+              const status = statuses.find(s => s.statusID === p.statusID);
               return status?.statusName === 'Completed';
             }).length;
-            const activeCount = employeeTasks.length - completedCount;
+            
+            const activeCount = employeeProjects.length;
 
             return (
               <div
@@ -229,8 +238,8 @@ export function GlobalDashboard({
 
       {/* Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <TaskDistributionChart tasks={tasks} statuses={statuses} />
-        <WorkloadByEmployeeChart tasks={tasks} employees={employees} />
+        <ProjectDistributionChart projects={activeProjectsList} statuses={statuses} />
+        <IncompleteProjectsChart projects={activeProjectsList} employees={employees} statuses={statuses} />
       </div>
     </div>
   );

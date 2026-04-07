@@ -3,10 +3,11 @@ import { Project } from '../App';
 import { ArrowLeft, CheckCircle2, Filter, FileText, Eye } from 'lucide-react';
 import { ProjectDetailModal } from './ProjectDetailModal';
 import { ExportDropdown } from './ExportDropdown';
-import * as XLSX from 'xlsx';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
-import { Document, Packer, Paragraph, Table, TableCell, TableRow, WidthType } from 'docx';
+import {
+  exportHistoricalExcel,
+  exportHistoricalPDF,
+  exportHistoricalWord
+} from '../../shared/utils/userExport';
 
 interface HistoricalProjectViewProps {
   projects: Project[];
@@ -17,7 +18,8 @@ export function HistoricalProjectView({ projects, onBack }: HistoricalProjectVie
   const [filters, setFilters] = useState({
     projectId: '',
     projectTitle: '',
-    completedDate: '',
+    completedFrom: '',
+    completedTo: '',
   });
   const [showFilters, setShowFilters] = useState(false);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
@@ -63,18 +65,20 @@ export function HistoricalProjectView({ projects, onBack }: HistoricalProjectVie
     )
       return false;
 
-    if (filters.completedDate) {
-      if (!project.createdAt) return false;
+    if (filters.completedFrom || filters.completedTo) {
+      if (!project.completedAt) return false;
 
-      const projectDate = new Date(project.createdAt);
-      const filterDate = new Date(filters.completedDate);
+      const projectDate = new Date(project.completedAt);
 
-      if (
-        projectDate.getFullYear() !== filterDate.getFullYear() ||
-        projectDate.getMonth() !== filterDate.getMonth() ||
-        projectDate.getDate() !== filterDate.getDate()
-      ) {
-        return false;
+      if (filters.completedFrom) {
+        const from = new Date(filters.completedFrom);
+        if (projectDate < from) return false;
+      }
+
+      if (filters.completedTo) {
+        const to = new Date(filters.completedTo);
+        to.setHours(23, 59, 59, 999);
+        if (projectDate > to) return false;
       }
     }
 
@@ -85,14 +89,16 @@ export function HistoricalProjectView({ projects, onBack }: HistoricalProjectVie
     setFilters({
       projectId: '',
       projectTitle: '',
-      completedDate: '',
+      completedFrom: '',
+      completedTo: '',
     });
   };
 
   const hasActiveFilters =
     filters.projectId ||
     filters.projectTitle ||
-    filters.completedDate;
+    filters.completedFrom ||
+    filters.completedTo;
 
   const getPriorityColor = (priority?: string) => {
     switch (priority) {
@@ -107,148 +113,14 @@ export function HistoricalProjectView({ projects, onBack }: HistoricalProjectVie
     }
   };
 
-  const exportToExcel = () => {
-    const exportData = filteredProjects.map((project) => ({
-      'Project ID': project.projectId,
-      'Project Title': project.title,
-      Description: project.description,
-      Priority: project.priority || 'Not set',
-      'Approval Status': project.approvalStatus || 'Not set',
-      'Completed Date': formatDisplayDate(project.createdAt),
-      Effort: project.estimatedEffort || 'Not specified',
-      Documents: project.documents?.length || 0,
-      'Timeline Entries': project.timelines?.length || 0,
-    }));
+  const exportToExcel = () =>
+    exportHistoricalExcel(filteredProjects, formatDisplayDate);
 
-    const worksheet = XLSX.utils.json_to_sheet(exportData);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Completed Projects');
-    XLSX.writeFile(workbook, 'completed_projects.xlsx');
-  };
+  const exportToPDF = () =>
+    exportHistoricalPDF(filteredProjects, formatDisplayDate);
 
-  const exportToPDF = () => {
-    const doc = new jsPDF();
-
-    doc.setFontSize(16);
-    doc.text('Completed Projects Report', 14, 15);
-    doc.setFontSize(10);
-    doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, 22);
-
-    autoTable(doc, {
-      startY: 30,
-      head: [[
-        'Project ID',
-        'Project Title',
-        'Priority',
-        'Approval Status',
-        'Completed Date',
-        'Effort',
-        'Docs',
-      ]],
-      body: filteredProjects.map(project => [
-        project.projectId,
-        project.title,
-        project.priority || 'Not set',
-        project.approvalStatus || 'Not set',
-        formatDisplayDate(project.createdAt),
-        project.estimatedEffort || 'Not specified',
-        project.documents?.length || 0,
-      ]),
-      styles: { fontSize: 8 },
-      headStyles: { fillColor: [31, 41, 55] },
-    });
-
-    doc.save('completed_projects.pdf');
-  };
-
-  const exportToWord = async () => {
-    const doc = new Document({
-      sections: [
-        {
-          properties: {},
-          children: [
-            new Paragraph({
-              text: 'Completed Projects Report',
-              heading: 1,
-            }),
-            new Paragraph({
-              text: `Generated on: ${new Date().toLocaleDateString()}`,
-            }),
-            new Table({
-              width: {
-                size: 100,
-                type: WidthType.PERCENTAGE,
-              },
-              rows: [
-                new TableRow({
-                  children: [
-                    new TableCell({
-                      children: [new Paragraph('Project ID')],
-                    }),
-                    new TableCell({
-                      children: [new Paragraph('Project Title')],
-                    }),
-                    new TableCell({
-                      children: [new Paragraph('Priority')],
-                    }),
-                    new TableCell({
-                      children: [new Paragraph('Approval Status')],
-                    }),
-                    new TableCell({
-                      children: [new Paragraph('Completed Date')],
-                    }),
-                    new TableCell({
-                      children: [new Paragraph('Effort')],
-                    }),
-                    new TableCell({
-                      children: [new Paragraph('Documents')],
-                    }),
-                  ],
-                }),
-                ...filteredProjects.map((project) => {
-                  return new TableRow({
-                    children: [
-                      new TableCell({
-                        children: [new Paragraph(project.projectId)],
-                      }),
-                      new TableCell({
-                        children: [new Paragraph(project.title)],
-                      }),
-                      new TableCell({
-                        children: [new Paragraph(project.priority || 'Not set')],
-                      }),
-                      new TableCell({
-                        children: [new Paragraph(project.approvalStatus || 'Not set')],
-                      }),
-                      new TableCell({
-                        children: [new Paragraph(formatDisplayDate(project.createdAt))],
-                      }),
-                      new TableCell({
-                        children: [new Paragraph(project.estimatedEffort || 'Not specified')],
-                      }),
-                      new TableCell({
-                        children: [new Paragraph(String(project.documents?.length || 0))],
-                      }),
-                    ],
-                  });
-                }),
-              ],
-            }),
-          ],
-        },
-      ],
-    });
-
-    const blob = await Packer.toBlob(doc);
-    const url = URL.createObjectURL(blob);
-
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'completed_projects.docx';
-    a.click();
-
-    URL.revokeObjectURL(url);
-  };
+  const exportToWord = () =>
+    exportHistoricalWord(filteredProjects, formatDisplayDate);
 
   return (
     <div>
@@ -314,12 +186,23 @@ export function HistoricalProjectView({ projects, onBack }: HistoricalProjectVie
               />
             </div>
             <div>
-              <label className="block text-gray-700 mb-2">Completed Date</label>
+              <label className="block text-gray-700 mb-2">Completed Date (From)</label>
               <input
                 type="date"
-                value={filters.completedDate}
+                value={filters.completedFrom}
                 onChange={(e) =>
-                  setFilters({ ...filters, completedDate: e.target.value })
+                  setFilters({ ...filters, completedFrom: e.target.value })
+                }
+                className="w-full px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-gray-400"
+              />
+            </div>
+            <div>
+              <label className="block text-gray-700 mb-2">Completed Date (To)</label>
+              <input
+                type="date"
+                value={filters.completedTo}
+                onChange={(e) =>
+                  setFilters({ ...filters, completedTo: e.target.value })
                 }
                 className="w-full px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-gray-400"
               />
@@ -365,10 +248,7 @@ export function HistoricalProjectView({ projects, onBack }: HistoricalProjectVie
                 <th className="text-left px-6 py-3 text-gray-700">Description</th>
                 <th className="text-left px-6 py-3 text-gray-700">Priority</th>
                 <th className="text-left px-6 py-3 text-gray-700">Approval Status</th>
-                <th className="text-left px-6 py-3 text-gray-700">
-                  Completed Date
-                </th>
-                <th className="text-left px-6 py-3 text-gray-700">Effort</th>
+                <th className="text-left px-6 py-3 text-gray-700">Completed Date</th>
                 <th className="text-left px-6 py-3 text-gray-700">Documents</th>
                 <th className="text-left px-6 py-3 text-gray-700">Actions</th>
               </tr>
@@ -401,10 +281,7 @@ export function HistoricalProjectView({ projects, onBack }: HistoricalProjectVie
                     </span>
                   </td>
                   <td className="px-6 py-4 text-gray-700">
-                    {formatDisplayDate(project.createdAt)}
-                  </td>
-                  <td className="px-6 py-4 text-gray-700">
-                    {project.estimatedEffort || 'Not specified'}
+                    {formatDisplayDate(project.completedAt)}
                   </td>
                   <td className="px-6 py-4">
                     {project.documents && project.documents.length > 0 ? (

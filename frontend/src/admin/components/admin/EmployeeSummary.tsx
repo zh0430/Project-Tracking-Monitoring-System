@@ -3,8 +3,11 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Project, Employee, Status, Priority, Role, TaskDocument } from '../../App';
 import { Calendar, Clock, Filter, Download, Trash2, Eye, Upload, FileText, X, CheckCircle, XCircle } from 'lucide-react';
 import { DocumentManager } from './DocumentManager';
-import { exportEmployeeTasksToExcel } from '../../utils/excelExport';
-import { ProjectGanttChart } from './ProjectGanttChart';
+import { 
+  exportEmployeeSummaryExcel, 
+  exportEmployeeSummaryPDF, 
+  exportEmployeeSummaryWord 
+} from '../../../shared/utils/userexport';
 
 interface EmployeeSummaryProps {
   employees: Employee[];
@@ -51,26 +54,33 @@ export function EmployeeSummary({
   const [filterSearchText, setFilterSearchText] = useState<string>('');
   const [viewMode, setViewMode] = useState<'active' | 'historical'>('active');
   const [selectedProjectDetails, setSelectedProjectDetails] = useState<Project | null>(null);
-  const [selectedProjectForGantt, setSelectedProjectForGantt] = useState<Project | null>(null);
+  const [showExportMenu, setShowExportMenu] = useState(false);
 
   useEffect(() => {
     if (employees.length === 0) return;
 
     if (!employeeId) {
-      navigate(`/admin/summary/${employees[0].userID}`, { replace: true });
+      navigate(`/admin/summary/ALL`, { replace: true });
       return;
     }
 
-    const exists = employees.some(e => e.userID === employeeId);
-    if (!exists) {
-      navigate(`/admin/summary/${employees[0].userID}`, { replace: true });
+    const isAll = employeeId === "ALL";
+    if (!isAll) {
+      const exists = employees.some(e => e.userID === employeeId);
+      if (!exists) {
+        navigate(`/admin/summary/ALL`, { replace: true });
+      }
     }
   }, [employeeId, employees, navigate]);
 
-  // Find selected employee based on URL parameter, default to first employee if not found
-  const selectedEmployee = employeeId 
-    ? employees.find(e => e.userID === employeeId)
-    : employees[0];
+  // Find selected employee based on URL parameter
+  const isAllEmployees = employeeId === "ALL";
+
+  const selectedEmployee = isAllEmployees
+    ? { name: "All Employees", roleID: "", userID: "ALL" } as Employee
+    : employeeId
+      ? employees.find(e => e.userID === employeeId)
+      : employees[0];
 
   // Create unique projects map to avoid duplicates
   const uniqueProjects = useMemo(() => {
@@ -81,10 +91,13 @@ export function EmployeeSummary({
     return Array.from(map.values());
   }, [projects]);
 
-  // Filter projects for the selected employee using employeeId from URL - memoized for performance
+  // Filter projects for the selected employee
   const employeeProjects = useMemo(() => {
+    if (employeeId === "ALL") {
+      return uniqueProjects; // ✅ ALL PROJECTS
+    }
+
     return uniqueProjects.filter(p => {
-      // Check if assignedToUserIDs is an array and includes the current employeeId with case-insensitive comparison
       return (p.assignedToUserIDs || []).some(
         id => id?.trim().toLowerCase() === employeeId?.trim().toLowerCase()
       );
@@ -187,6 +200,16 @@ export function EmployeeSummary({
     });
   }, [filteredProjects, statuses]);
 
+  const historicalProjects = useMemo(() => {
+    return employeeProjects.filter(p => {
+      const status = statuses.find(s => s.statusID === p.statusID);
+      return (
+        status?.statusName === 'Completed' &&
+        p.approvalStatus === 'Approved'
+      );
+    });
+  }, [employeeProjects, statuses]);
+
   if (employees.length === 0) {
     return (
       <div className="bg-white p-6 rounded-lg border border-gray-300">
@@ -205,14 +228,74 @@ export function EmployeeSummary({
 
   const role = roles.find(r => r.roleID === selectedEmployee.roleID);
 
-  const handleExport = async () => {
-    // Note: You'll need to update the export function to handle projects instead of tasks
-    await exportEmployeeTasksToExcel(
-      selectedEmployee,
-      projects ?? [],
-      statuses,
-      priorities
-    );
+  const handleExport = async (type: string) => {
+    // ✅ ALWAYS USE FULL DATASET
+    const allProjects = employeeProjects;
+
+    // ✅ regroup from FULL data (NOT filteredProjects)
+    const toDo = allProjects.filter(p => {
+      const status = statuses.find(s => s.statusID === p.statusID);
+      return status?.statusName === 'To Do';
+    });
+
+    const inProgress = allProjects.filter(p => {
+      const status = statuses.find(s => s.statusID === p.statusID);
+      return status?.statusName === 'In Progress';
+    });
+
+    const revision = allProjects.filter(p => {
+      const status = statuses.find(s => s.statusID === p.statusID);
+      return status?.statusName === 'Revision Required';
+    });
+
+    const completedActive = allProjects.filter(p => {
+      const status = statuses.find(s => s.statusID === p.statusID);
+      return (
+        status?.statusName === 'Completed' &&
+        p.approvalStatus !== 'Approved'
+      );
+    });
+
+    const historical = allProjects.filter(p => {
+      const status = statuses.find(s => s.statusID === p.statusID);
+      return (
+        status?.statusName === 'Completed' &&
+        p.approvalStatus === 'Approved'
+      );
+    });
+
+    if (type === 'excel') {
+      await exportEmployeeSummaryExcel(
+        selectedEmployee,
+        {
+          toDo,
+          inProgress,
+          revision,
+          completed: completedActive,
+          historical,
+        },
+        statuses,
+        priorities
+      );
+    }
+
+    if (type === 'pdf') {
+      exportEmployeeSummaryPDF(
+        allProjects,
+        statuses,
+        priorities,
+        selectedEmployee.name
+      );
+    }
+
+    if (type === 'word') {
+      await exportEmployeeSummaryWord(
+        allProjects,
+        statuses,
+        priorities,
+        selectedEmployee.name
+      );
+    }
   };
 
   const handleEmployeeChange = (newEmployeeId: string) => {
@@ -236,32 +319,59 @@ export function EmployeeSummary({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <div className="w-16 h-16 bg-gray-800 text-white rounded-full flex items-center justify-center text-xl">
-              {selectedEmployee.name.charAt(0)}
+              {isAllEmployees ? "A" : selectedEmployee.name.charAt(0)}
             </div>
             <div>
               <h2 className="text-gray-900">{selectedEmployee.name}</h2>
-              <p className="text-gray-600">{role?.roleName}</p>
+              <p className="text-gray-600">
+                {isAllEmployees ? "All Roles" : role?.roleName}
+              </p>
             </div>
           </div>
           <div className="flex gap-3">
             <select
-              value={selectedEmployee.userID}
+              value={employeeId || employees[0].userID}
               onChange={e => handleEmployeeChange(e.target.value)}
               className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
             >
+              <option value="ALL">All Employees</option>
               {employees.map(emp => (
                 <option key={emp.userID} value={emp.userID}>
                   {emp.name}
                 </option>
               ))}
             </select>
-            <button
-              onClick={handleExport}
-              className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-            >
-              <Download className="w-4 h-4" />
-              Export Summary
-            </button>
+            <div className="relative">
+              <button
+                onClick={() => setShowExportMenu(!showExportMenu)}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+              >
+                Export Summary
+              </button>
+
+              {showExportMenu && (
+                <div className="absolute right-0 mt-2 w-40 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
+                  <button
+                    onClick={() => { handleExport('excel'); setShowExportMenu(false); }}
+                    className="block w-full text-left px-4 py-2 hover:bg-gray-100 rounded-t-lg"
+                  >
+                    Excel
+                  </button>
+                  <button
+                    onClick={() => { handleExport('pdf'); setShowExportMenu(false); }}
+                    className="block w-full text-left px-4 py-2 hover:bg-gray-100"
+                  >
+                    PDF
+                  </button>
+                  <button
+                    onClick={() => { handleExport('word'); setShowExportMenu(false); }}
+                    className="block w-full text-left px-4 py-2 hover:bg-gray-100 rounded-b-lg"
+                  >
+                    Word
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -446,21 +556,23 @@ export function EmployeeSummary({
                   <div className="w-3 h-3 rounded-full bg-gray-800"></div>
                   <h3 className="text-gray-900">Completed</h3>
                   <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-sm">
-                    {completedProjects.length}
+                    {completedProjects.filter(p => p.approvalStatus !== 'Approved').length}
                   </span>
                 </div>
                 <div className="space-y-3">
-                  {completedProjects.map(project => (
-                    <ProjectCard
-                      key={project.projectId}
-                      project={project}
-                      priorities={priorities}
-                      statuses={statuses}
-                      employees={employees}
-                      onDelete={onDeleteProject}
-                      fetchProjects={fetchProjects}
-                    />
-                  ))}
+                  {completedProjects
+                    .filter(p => p.approvalStatus !== 'Approved')
+                    .map(project => (
+                      <ProjectCard
+                        key={project.projectId}
+                        project={project}
+                        priorities={priorities}
+                        statuses={statuses}
+                        employees={employees}
+                        onDelete={onDeleteProject}
+                        fetchProjects={fetchProjects}
+                      />
+                    ))}
                 </div>
               </div>
             </div>
@@ -474,23 +586,26 @@ export function EmployeeSummary({
           <div className="p-6 border-b border-gray-300">
             <h3 className="text-gray-900">Completed & Approved Projects History</h3>
             <p className="text-gray-600 text-sm mt-1">
-              Total completed and approved: {completedProjects.length} projects
+              Total completed and approved: {historicalProjects.length} projects
             </p>
           </div>
           <div className="divide-y divide-gray-300">
-            {completedProjects.length === 0 ? (
+            {historicalProjects.length === 0 ? (
               <div className="p-8 text-center text-gray-500">
                 No completed and approved projects found
               </div>
             ) : (
-              completedProjects.map(project => {
+              historicalProjects.map(project => {
                 const priority = priorities.find(p => p.priorityID === project.priorityID);
                 
                 return (
                   <div key={project.projectId} className="p-4 hover:bg-gray-50 transition-colors">
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
-                        <h4 className="text-gray-900 mb-1">{project.title}</h4>
+                        <div className="mb-2">
+                          <p className="text-xs text-gray-400">{project.projectId}</p>
+                          <h4 className="text-gray-900">{project.title}</h4>
+                        </div>
                         <p className="text-gray-600 text-sm mb-2">{project.description}</p>
                         <div className="flex gap-2 flex-wrap">
                           <span className={`inline-flex items-center px-2 py-1 rounded text-xs border ${
@@ -532,15 +647,6 @@ export function EmployeeSummary({
           onClose={() => setSelectedProjectDetails(null)}
         />
       )}
-
-      {/* Gantt Chart Modal */}
-      {selectedProjectForGantt && (
-        <GanttChartModal
-          project={selectedProjectForGantt}
-          employees={employees}
-          onClose={() => setSelectedProjectForGantt(null)}
-        />
-      )}
     </div>
   );
 }
@@ -559,7 +665,7 @@ function ProjectCard({ project, priorities, statuses, employees, onDelete, fetch
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showUserSelectModal, setShowUserSelectModal] = useState(false);
   const [showRejectConfirm, setShowRejectConfirm] = useState(false);
-  const [showApproveConfirm, setShowApproveConfirm] = useState(false); // ✅ ADD THIS
+  const [showApproveConfirm, setShowApproveConfirm] = useState(false);
   const priority = priorities.find(p => p.priorityID === project.priorityID);
   const status = statuses.find(s => s.statusID === project.statusID);
 
@@ -585,7 +691,10 @@ function ProjectCard({ project, priorities, statuses, employees, onDelete, fetch
 
   return (
     <div className="bg-white p-4 rounded-lg border border-gray-300 hover:shadow-md transition-shadow">
-      <h4 className="text-gray-900 mb-2">{project.title}</h4>
+      <div className="mb-2">
+        <p className="text-xs text-gray-400">{project.projectId}</p>
+        <h4 className="text-gray-900">{project.title}</h4>
+      </div>
       <p className="text-gray-600 text-sm mb-3">{project.description}</p>
       
       <div className="space-y-2">
@@ -631,7 +740,7 @@ function ProjectCard({ project, priorities, statuses, employees, onDelete, fetch
         {isCompleted && (project.approvalStatus === 'Pending' || !project.approvalStatus) && (
           <>
             <button
-              onClick={() => setShowApproveConfirm(true)}  // ✅ CHANGED
+              onClick={() => setShowApproveConfirm(true)}
               className="px-3 py-2 text-white rounded-lg text-sm font-medium"
               style={{ backgroundColor: '#16a34a' }}
             >
@@ -906,46 +1015,6 @@ function ProjectDetailsModal({ project, priorities, employees, onClose }: Projec
               />
             </div>
           )}
-        </div>
-
-        <div className="p-6 border-t border-gray-300">
-          <button
-            onClick={onClose}
-            className="w-full px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
-          >
-            Close
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-interface GanttChartModalProps {
-  project: Project;
-  employees: Employee[];
-  onClose: () => void;
-}
-
-function GanttChartModal({ project, employees, onClose }: GanttChartModalProps) {
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-lg max-w-6xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="p-6 border-b border-gray-300 flex items-center justify-between">
-          <h2 className="text-gray-900">Project Timeline</h2>
-          <button
-            onClick={onClose}
-            className="p-1 hover:bg-gray-100 rounded"
-          >
-            <X className="w-5 h-5 text-gray-400" />
-          </button>
-        </div>
-        
-        <div className="p-6">
-          <ProjectGanttChart
-            project={project}
-            employees={employees}
-          />
         </div>
 
         <div className="p-6 border-t border-gray-300">

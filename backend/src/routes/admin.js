@@ -13,7 +13,13 @@ router.get(
   async (req, res) => {
     try {
       const result = await pool.query(
-        `SELECT u.public_user_id, u.name, u.email 
+        `SELECT 
+            u.public_user_id, 
+            u.name, 
+            u.email,
+            u.phone,
+            u.department,
+            u.profile_picture
          FROM users u 
          JOIN roles r ON u.role_id = r.role_id 
          WHERE u.user_id = $1
@@ -33,12 +39,58 @@ router.get(
         adminID: admin.public_user_id,
         name: admin.name,
         email: admin.email,
+        phone: admin.phone,
+        department: admin.department,
+        profilePicture: admin.profile_picture,
       });
     } catch (err) {
       console.error("Admin /me error:", err);
       res.status(500).json({
         message: "Server error",
       });
+    }
+  }
+);
+
+// Update current admin profile
+router.put(
+  "/me",
+  authenticate,
+  authorizeAdmin,
+  async (req, res) => {
+    try {
+      const { name, email, phone, department, profilePicture } = req.body;
+
+      const result = await pool.query(
+        `
+        UPDATE users
+        SET name = $1,
+            email = $2,
+            phone = $3,
+            department = $4,
+            profile_picture = $5
+        WHERE user_id = $6
+        RETURNING public_user_id, name, email, phone, department, profile_picture
+        `,
+        [name, email, phone, department, profilePicture, req.user.userId]
+      );
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({ message: "Admin not found" });
+      }
+
+      res.json({
+        adminID: result.rows[0].public_user_id,
+        name: result.rows[0].name,
+        email: result.rows[0].email,
+        phone: result.rows[0].phone,
+        department: result.rows[0].department,
+        profilePicture: result.rows[0].profile_picture,
+      });
+
+    } catch (err) {
+      console.error("Admin update error:", err);
+      res.status(500).json({ message: "Server error" });
     }
   }
 );

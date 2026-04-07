@@ -641,27 +641,26 @@ export default function AdminApp() {
   };
 
   const handleUpdateAdmin = async (updatedAdmin: Admin) => {
-    try {
-      const token = localStorage.getItem("token");
-      const response = await fetch("http://localhost:5000/api/admin/me", {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        credentials: "include",
-        body: JSON.stringify(updatedAdmin),
-      });
+    const token = localStorage.getItem("token");
 
-      if (!response.ok) {
-        throw new Error('Failed to update admin profile');
-      }
+    const response = await fetch("http://localhost:5000/api/admin/me", {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      credentials: "include",
+      body: JSON.stringify(updatedAdmin),
+    });
 
-      const updatedAdminData = await response.json();
-      setAdmin(updatedAdminData);
-    } catch (error) {
-      console.error('Error updating admin:', error);
+    if (!response.ok) {
+      throw new Error('Failed to update admin');
     }
+
+    const updatedAdminData = await response.json();
+    setAdmin(updatedAdminData);
+
+    return updatedAdminData; // 🔥 IMPORTANT
   };
 
   const handleDeleteProject = async (
@@ -861,7 +860,7 @@ export default function AdminApp() {
               path="dashboard"
               element={
                 <GlobalDashboard
-                  tasks={tasks}
+                  projects={projects} // ✅ UPDATED: Now using projects instead of tasks
                   employees={employees}
                   statuses={statuses}
                   priorities={priorities}

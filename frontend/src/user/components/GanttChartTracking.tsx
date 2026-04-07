@@ -2,14 +2,12 @@ import { useState, useMemo, useRef } from 'react';
 import { Project, ProjectTimeline, User } from '../App';
 import { Calendar, Users, Filter, X, Download, ArrowLeft, CheckCircle } from 'lucide-react';
 import { ProjectDetailModal } from './ProjectDetailModal';
-import { captureElementImage, exportGanttPDF } from '../../shared/utils/userExport';
-import * as XLSX from 'xlsx';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
-import { domToPng } from 'modern-screenshot';
-import ExcelJS from 'exceljs';
-import { Document, Packer, Paragraph, ImageRun, Table, TableRow, TableCell, WidthType } from 'docx';
-import { getActiveProjects } from '../../shared/utils/projectHelpers';
+import {
+  captureElementImage,
+  exportGanttPDF,
+  exportGanttWord,
+  exportGanttChartToExcel
+} from '../../shared/utils/userExport';
 
 interface GanttChartTrackingProps {
   projects: Project[];
@@ -68,6 +66,23 @@ const formatDisplayDate = (dateString?: string) => {
   } catch {
     return 'Invalid date';
   }
+};
+
+// Format date for export
+const formatExportDate = (date?: string) => {
+  if (!date) return 'N/A';
+
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return 'Invalid date';
+
+  return d.toLocaleString('en-US', {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
 };
 
 export function GanttChartTracking({
@@ -190,8 +205,14 @@ export function GanttChartTracking({
 
   // Filter projects - show only current user's active projects
   const myProjects = useMemo(() => {
-    // Start with active projects
-    let filtered = getActiveProjects(projects);
+    // Start with active projects (exclude historical/completed+approved)
+    let filtered = projects.filter(p => {
+      const isCompleted = p.status === 'Completed';
+      if (isCompleted && p.approvalStatus === 'Approved') {
+        return false;
+      }
+      return true;
+    });
 
     // Apply project search filter if provided
     if (searchProjectId.trim()) {
@@ -242,92 +263,17 @@ export function GanttChartTracking({
   const captureGanttImage = async () => {
     if (!ganttRef.current) return null;
 
-    const dataUrl = await domToPng(ganttRef.current, {
-      quality: 1,
-      scale: 2,
-      backgroundColor: '#ffffff',
-    });
-
-    return dataUrl;
+    return await captureElementImage(ganttRef.current);
   };
 
-  // Export to Excel with image
   const handleExportExcel = async () => {
-    try {
-      const image = await captureGanttImage();
-      if (!image) {
-        alert('Could not capture Gantt chart image');
-        return;
-      }
+    const image = await captureElementImage(ganttRef.current);
+    if (!image) return;
 
-      const workbook = new ExcelJS.Workbook();
-      const sheet = workbook.addWorksheet('Gantt Chart');
-
-      // Add image
-      const imgId = workbook.addImage({
-        base64: image.split(',')[1],
-        extension: 'png',
-      });
-
-      sheet.addImage(imgId, {
-        tl: { col: 0, row: 0 },
-        ext: { width: 1200, height: 400 },
-      });
-
-      // Add data sheet
-      const dataSheet = workbook.addWorksheet('Project Data');
-      const exportData = myProjects.map((project) => ({
-        'Project ID': project.projectId,
-        'Title': project.title,
-        'Status': project.status,
-        'Priority': project.priority || 'N/A',
-        'Start Date': project.createdAt,
-        'Due Date': project.dueDate || 'N/A',
-        'Category': project.workCategory,
-      }));
-
-      dataSheet.columns = [
-        { header: 'Project ID', key: 'Project ID', width: 15 },
-        { header: 'Title', key: 'Title', width: 30 },
-        { header: 'Status', key: 'Status', width: 15 },
-        { header: 'Priority', key: 'Priority', width: 12 },
-        { header: 'Start Date', key: 'Start Date', width: 15 },
-        { header: 'Due Date', key: 'Due Date', width: 15 },
-        { header: 'Category', key: 'Category', width: 15 },
-      ];
-
-      exportData.forEach(row => {
-        dataSheet.addRow(row);
-      });
-
-      // Style headers
-      dataSheet.getRow(1).font = { bold: true };
-      dataSheet.getRow(1).fill = {
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: { argb: 'FF1F2937' }
-      };
-      dataSheet.getRow(1).font = { color: { argb: 'FFFFFFFF' }, bold: true };
-
-      const buffer = await workbook.xlsx.writeBuffer();
-      const blob = new Blob([buffer]);
-      const url = URL.createObjectURL(blob);
-
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'gantt_chart_with_data.xlsx';
-      a.click();
-
-      URL.revokeObjectURL(url);
-      setShowExportMenu(false);
-    } catch (error) {
-      console.error('Error exporting to Excel:', error);
-      alert('Error exporting to Excel. Please try again.');
-      setShowExportMenu(false);
-    }
+    await exportGanttChartToExcel(myProjects, [], [], [], image);
+    setShowExportMenu(false);
   };
 
-  // Export to PDF with image
   const handleExportPDF = async () => {
     const image = await captureElementImage(ganttRef.current);
     if (!image) return;
@@ -337,111 +283,54 @@ export function GanttChartTracking({
       p.title,
       p.status,
       p.priority || 'N/A',
+      formatExportDate(p.createdAt),
+      formatExportDate(p.dueDate),
     ]);
 
-    await exportGanttPDF(
-      image,
-      tableData,
-      `${dateRange.start.toDateString()} → ${dateRange.end.toDateString()}`
-    );
-  };
-
-  // Export to Word with image
-  const handleExportWord = async () => {
-    try {
-      const image = await captureGanttImage();
-      if (!image) {
-        alert('Could not capture Gantt chart image');
-        return;
-      }
-
-      const imageData = image.split(',')[1];
-
-      // Create table rows
-      const rows = [
-        new TableRow({
-          children: [
-            'Project ID',
-            'Title',
-            'Status',
-            'Priority',
-            'Start Date',
-            'Due Date'
-          ].map(text =>
-            new TableCell({
-              width: { size: 16, type: WidthType.PERCENTAGE },
-              children: [new Paragraph({ text, bold: true })],
-            })
-          ),
-        }),
-        ...myProjects.map(project =>
-          new TableRow({
-            children: [
-              project.projectId,
-              project.title,
-              project.status,
-              project.priority || 'N/A',
-              project.createdAt,
-              project.dueDate || 'N/A',
-            ].map(text =>
-              new TableCell({
-                children: [new Paragraph(String(text))],
-              })
-            ),
-          })
-        ),
-      ];
-
-      const doc = new Document({
-        sections: [{
-          children: [
-            new Paragraph({ 
-              text: 'Gantt Chart Report', 
-              heading: 1 
-            }),
-            new Paragraph({
-              text: `Generated on: ${new Date().toLocaleDateString()}`,
-            }),
-            new Paragraph({
-              text: `Date Range: ${dateRange.start.toLocaleDateString()} to ${dateRange.end.toLocaleDateString()}`,
-            }),
-            new Paragraph({}),
-            new Paragraph({
-              children: [
-                new ImageRun({
-                  data: Uint8Array.from(atob(imageData), c => c.charCodeAt(0)),
-                  transformation: {
-                    width: 1000,
-                    height: 500,
-                  },
-                }),
-              ],
-            }),
-            new Paragraph({}),
-            new Paragraph({ text: 'Project Details', heading: 2 }),
-            new Table({ 
-              rows,
-              width: { size: 100, type: WidthType.PERCENTAGE },
-            }),
-          ],
-        }],
+    const formatDateRange = (date: Date) =>
+      date.toLocaleDateString('en-US', {
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric',
       });
 
-      const blob = await Packer.toBlob(doc);
-      const url = URL.createObjectURL(blob);
+    // ❗ FORCE CLEAN STRING (NO SYMBOL)
+    const dateRangeText =
+      formatDateRange(dateRange.start) +
+      ' - ' +
+      formatDateRange(dateRange.end);
 
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'gantt_chart_report.docx';
-      a.click();
+    await exportGanttPDF(image, tableData, dateRangeText);
+    setShowExportMenu(false);
+  };
 
-      URL.revokeObjectURL(url);
-      setShowExportMenu(false);
-    } catch (error) {
-      console.error('Error exporting to Word:', error);
-      alert('Error exporting to Word. Please try again.');
-      setShowExportMenu(false);
-    }
+  const handleExportWord = async () => {
+    const image = await captureElementImage(ganttRef.current);
+    if (!image) return;
+
+    const tableData = myProjects.map(p => [
+      p.projectId,
+      p.title,
+      p.status,
+      p.priority || 'N/A',
+      formatExportDate(p.createdAt),
+      formatExportDate(p.dueDate),
+    ]);
+
+    const formatDateRange = (date: Date) =>
+      date.toLocaleDateString('en-US', {
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric',
+      });
+
+    const dateRangeText =
+      formatDateRange(dateRange.start) +
+      ' - ' +
+      formatDateRange(dateRange.end);
+
+    await exportGanttWord(image, tableData, dateRangeText);
+    setShowExportMenu(false);
   };
 
   const handleViewDetails = (project: Project) => {
@@ -501,7 +390,7 @@ export function GanttChartTracking({
                     onClick={handleExportExcel}
                     className="menu-btn"
                   >
-                    Excel (with image)
+                    Excel
                   </button>
                   <button
                     onClick={handleExportPDF}

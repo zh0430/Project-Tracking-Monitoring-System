@@ -1,7 +1,12 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { Project, Employee, Status, Priority } from '../../App';
 import { Calendar, Users, Filter, X, Download, ChevronLeft, ChevronRight, Maximize2, Minimize2 } from 'lucide-react';
-import { exportGanttChartToExcel } from '../../utils/excelExport';
+import {
+  exportGanttChartToExcel,
+  exportGanttPDF,
+  exportGanttWord,
+  captureElementImage
+} from '../../../shared/utils/userexport';
 
 interface TeamGanttChartProps {
   projects: Project[];
@@ -31,9 +36,12 @@ export function TeamGanttChart({ projects, employees, statuses, priorities }: Te
   const [viewMode, setViewMode] = useState<'overview' | 'detailed'>('overview');
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
   const currentYear = new Date().getFullYear();
-  const [selectedYear, setSelectedYear] = useState<number>(currentYear);
+  const startYear = 2026;
+  const [selectedYear, setSelectedYear] = useState<number>(startYear);
   const [fromMonth, setFromMonth] = useState(`${selectedYear}-01`);
   const [toMonth, setToMonth] = useState(`${selectedYear}-12`);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const ganttRef = useRef<HTMLDivElement>(null);
 
   // Update fromMonth and toMonth when selectedYear changes
   useEffect(() => {
@@ -131,10 +139,7 @@ export function TeamGanttChart({ projects, employees, statuses, priorities }: Te
     if (searchEmployee) {
       filtered = filtered.filter(p => {
         const assignedIDs = p.assignedToUserIDs || [];
-        return assignedIDs.some(empId => {
-          const emp = employees.find(e => e.userID === empId);
-          return emp?.name === searchEmployee;
-        });
+        return assignedIDs.includes(searchEmployee);
       });
     }
 
@@ -153,7 +158,12 @@ export function TeamGanttChart({ projects, employees, statuses, priorities }: Te
   const projectsByEmployee = useMemo(() => {
     const grouped: { employee: Employee; projects: Project[] }[] = [];
 
-    employees.forEach(emp => {
+    // 🔥 Filter employees FIRST
+    const filteredEmployees = searchEmployee
+      ? employees.filter(e => e.userID === searchEmployee)
+      : employees;
+
+    filteredEmployees.forEach(emp => {
       const empProjects = filteredProjects.filter(p =>
         (p.assignedToUserIDs || []).includes(emp.userID)
       );
@@ -164,7 +174,7 @@ export function TeamGanttChart({ projects, employees, statuses, priorities }: Te
     });
 
     return grouped.sort((a, b) => a.employee.name.localeCompare(b.employee.name));
-  }, [filteredProjects, employees]);
+  }, [filteredProjects, employees, searchEmployee]);
 
   const handleViewDetails = (project: Project) => {
     setSelectedProjectForDetails(project);
@@ -177,8 +187,38 @@ export function TeamGanttChart({ projects, employees, statuses, priorities }: Te
     setToMonth(`${selectedYear}-12`);
   };
 
-  const handleExport = async () => {
-    await exportGanttChartToExcel(filteredProjects, employees, statuses, priorities);
+  const handleExport = async (type: 'excel' | 'pdf' | 'word') => {
+    const image = await captureElementImage(ganttRef.current);
+    if (!image) return;
+
+    const tableData = filteredProjects.map(p => [
+      p.projectId,
+      p.title,
+      statuses.find(s => s.statusID === p.statusID)?.statusName || 'N/A',
+      priorities.find(pr => pr.priorityID === p.priorityID)?.priorityLevel || 'N/A'
+    ]);
+
+    const dateRangeText = `${fromMonth} to ${toMonth}`;
+
+    if (type === 'pdf') {
+      await exportGanttPDF(image, tableData, dateRangeText);
+    }
+
+    if (type === 'excel') {
+      await exportGanttChartToExcel(
+        filteredProjects,
+        employees,
+        statuses,
+        priorities,
+        image
+      );
+    }
+
+    if (type === 'word') {
+      await exportGanttWord(image, tableData, dateRangeText);
+    }
+
+    setShowExportMenu(false);
   };
 
   return (
@@ -198,13 +238,38 @@ export function TeamGanttChart({ projects, employees, statuses, priorities }: Te
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              onClick={handleExport}
-              className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-            >
-              <Download className="w-4 h-4" />
-              Export to Excel
-            </button>
+            <div className="relative">
+              <button
+                onClick={() => setShowExportMenu(!showExportMenu)}
+                className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+              >
+                <Download className="w-4 h-4" />
+                Export
+              </button>
+
+              {showExportMenu && (
+                <div className="absolute right-0 mt-2 w-40 bg-white border rounded-lg shadow-lg z-50">
+                  <button
+                    onClick={() => handleExport('excel')}
+                    className="block w-full px-4 py-2 hover:bg-gray-100 rounded-t-lg text-left"
+                  >
+                    Excel
+                  </button>
+                  <button
+                    onClick={() => handleExport('pdf')}
+                    className="block w-full px-4 py-2 hover:bg-gray-100 text-left"
+                  >
+                    PDF
+                  </button>
+                  <button
+                    onClick={() => handleExport('word')}
+                    className="block w-full px-4 py-2 hover:bg-gray-100 rounded-b-lg text-left"
+                  >
+                    Word
+                  </button>
+                </div>
+              )}
+            </div>
             <button
               onClick={() => setShowFilters(!showFilters)}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
@@ -224,7 +289,7 @@ export function TeamGanttChart({ projects, employees, statuses, priorities }: Te
               {/* Search by Employee Name */}
               <div>
                 <label className="block text-gray-700 mb-2 text-sm">
-                  Search by Employee Name
+                  Search by Employee
                 </label>
                 <select
                   value={searchEmployee}
@@ -233,7 +298,7 @@ export function TeamGanttChart({ projects, employees, statuses, priorities }: Te
                 >
                   <option value="">All Employees</option>
                   {employees.map(emp => (
-                    <option key={emp.userID} value={emp.name}>
+                    <option key={emp.userID} value={emp.userID}>
                       {emp.name}
                     </option>
                   ))}
@@ -264,7 +329,7 @@ export function TeamGanttChart({ projects, employees, statuses, priorities }: Te
                   onChange={(e) => setSelectedYear(parseInt(e.target.value))}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 text-sm"
                 >
-                  {Array.from({ length: 5 }, (_, i) => currentYear - 2 + i).map(year => (
+                  {Array.from({ length: 5 }, (_, i) => startYear + i).map(year => (
                     <option key={year} value={year}>{year}</option>
                   ))}
                 </select>
@@ -299,7 +364,7 @@ export function TeamGanttChart({ projects, employees, statuses, priorities }: Te
                 <span className="text-sm text-gray-600">Active Filters:</span>
                 {searchEmployee && (
                   <span className="inline-flex items-center gap-1 px-3 py-1 bg-red-100 text-red-700 rounded-full text-sm">
-                    Employee: {searchEmployee}
+                    Employee: {employees.find(e => e.userID === searchEmployee)?.name || searchEmployee}
                     <button onClick={() => setSearchEmployee('')} className="hover:bg-red-200 rounded-full p-0.5">
                       <X className="w-3 h-3" />
                     </button>
@@ -342,7 +407,7 @@ export function TeamGanttChart({ projects, employees, statuses, priorities }: Te
       </div>
 
       {/* Gantt Chart */}
-      <div className="bg-white rounded-lg border border-gray-300 overflow-hidden">
+      <div ref={ganttRef} className="bg-white rounded-lg border border-gray-300 overflow-hidden">
         <div className="w-full overflow-hidden">
           <div className="w-full">
             {/* Timeline Header */}

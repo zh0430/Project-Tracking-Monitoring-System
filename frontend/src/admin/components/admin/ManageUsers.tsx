@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { Employee, Role, Task, Priority, Status, Project } from '../../App';
 import { Plus, Download } from 'lucide-react';
 import { AssignTaskModal } from './AssignTaskModal';
-import { exportAllTasksToExcel } from '../../utils/excelExport';
 import {
   exportUsersExcel,
   exportUsersPDF,
@@ -56,10 +55,6 @@ export function ManageUsers({
     onAddTask(task);
     setShowAssignModal(false);
     setSelectedEmployeeId(null);
-  };
-
-  const handleExportAll = async () => {
-    await exportAllTasksToExcel(employees, tasks, statuses, priorities);
   };
 
   const handleResetPassword = async (userId: string) => {

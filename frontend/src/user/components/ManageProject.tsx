@@ -3,8 +3,8 @@ import { Project } from '../App';
 import { ProjectDetailModal } from './ProjectDetailModal';
 import { ClipboardList, Plus, History, Filter, Check } from 'lucide-react';
 import { ExportDropdown } from './ExportDropdown';
+import * as XLSX from 'xlsx';
 import {
-  exportProjectsExcel,
   exportProjectsPDF,
   exportProjectsWord
 } from '../../shared/utils/userExport';
@@ -26,7 +26,8 @@ export function ManageProject({
 }: ManageProjectProps) {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [filters, setFilters] = useState({
-    dueDate: '',
+    dueDateFrom: '',
+    dueDateTo: '',
     priority: '',
     searchTerm: '',
   });
@@ -94,18 +95,22 @@ export function ManageProject({
 
   // Apply filters
   const filteredProjects = activeProjects.filter((project) => {
-    if (filters.dueDate) {
+    // Date range filter
+    if (filters.dueDateFrom || filters.dueDateTo) {
       if (!project.dueDate) return false;
 
       const projectDate = new Date(project.dueDate);
-      const filterDate = new Date(filters.dueDate);
 
-      if (
-        projectDate.getFullYear() !== filterDate.getFullYear() ||
-        projectDate.getMonth() !== filterDate.getMonth() ||
-        projectDate.getDate() !== filterDate.getDate()
-      ) {
-        return false;
+      if (filters.dueDateFrom) {
+        const from = new Date(filters.dueDateFrom);
+        if (projectDate < from) return false;
+      }
+
+      if (filters.dueDateTo) {
+        const to = new Date(filters.dueDateTo);
+        // include full day
+        to.setHours(23, 59, 59, 999);
+        if (projectDate > to) return false;
       }
     }
 
@@ -151,18 +156,42 @@ export function ManageProject({
 
   const resetFilters = () => {
     setFilters({
-      dueDate: '',
+      dueDateFrom: '',
+      dueDateTo: '',
       priority: '',
       searchTerm: '',
     });
   };
 
   const hasActiveFilters =
-    filters.dueDate ||
+    filters.dueDateFrom ||
+    filters.dueDateTo ||
     filters.priority ||
     filters.searchTerm;
 
-  const exportToExcel = () => exportProjectsExcel(filteredProjects);
+  const exportToExcel = () => {
+    const formatted = filteredProjects.map(p => ({
+      Id: p.id,
+      ProjectId: p.projectId,
+      Title: p.title,
+      Description: p.description,
+      Status: p.status,
+      Priority: p.priority || 'Not set',
+      DueDate: p.dueDate
+        ? new Date(p.dueDate).toLocaleString('en-US')
+        : 'N/A',
+      CreatedAt: p.createdAt
+        ? new Date(p.createdAt).toLocaleString('en-US')
+        : 'N/A',
+      ApprovalStatus: p.approvalStatus || 'N/A',
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(formatted);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Projects');
+    XLSX.writeFile(workbook, 'projects.xlsx');
+  };
+  
   const exportToPDF = () => exportProjectsPDF(filteredProjects, formatDisplayDate);
   const exportToWord = () => exportProjectsWord(filteredProjects, formatDisplayDate);
 
@@ -224,12 +253,23 @@ export function ManageProject({
               />
             </div>
             <div>
-              <label className="block text-gray-700 mb-2">Due Date</label>
+              <label className="block text-gray-700 mb-2">Due Date (From)</label>
               <input
                 type="date"
-                value={filters.dueDate}
+                value={filters.dueDateFrom}
                 onChange={(e) =>
-                  setFilters({ ...filters, dueDate: e.target.value })
+                  setFilters({ ...filters, dueDateFrom: e.target.value })
+                }
+                className="w-full px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-gray-400"
+              />
+            </div>
+            <div>
+              <label className="block text-gray-700 mb-2">Due Date (To)</label>
+              <input
+                type="date"
+                value={filters.dueDateTo}
+                onChange={(e) =>
+                  setFilters({ ...filters, dueDateTo: e.target.value })
                 }
                 className="w-full px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-gray-400"
               />

@@ -52,6 +52,7 @@ router.get('/', authenticate, async (req, res) => {
         pr.priority_level AS "priority",
         p.due_date AS "dueDate",
         p.created_at AS "createdAt",
+        p.completed_at AS "completedAt",
         COALESCE(p.documents, '[]') AS documents,
         p.status_id AS "statusId",
         p.priority_id AS "priorityId",
@@ -336,6 +337,7 @@ router.post('/', authenticate, (req, res, next) => {
         pr.priority_level AS "priority",
         p.due_date AS "dueDate",
         p.created_at AS "createdAt",
+        p.completed_at AS "completedAt",
         COALESCE(p.documents, '[]') AS documents,
         p.status_id AS "statusId",
         p.priority_id AS "priorityId",
@@ -712,6 +714,7 @@ router.put('/:id', (req, res, next) => {
         pr.priority_level AS "priority",
         p.due_date AS "dueDate",
         p.created_at AS "createdAt",
+        p.completed_at AS "completedAt",
         COALESCE(p.documents, '[]') AS documents,
         p.status_id AS "statusId",
         p.priority_id AS "priorityId",
@@ -801,7 +804,8 @@ router.put('/:id/approval', async (req, res) => {
     if (action === 'approve') {
       await db.query(
         `UPDATE projects
-         SET approval_status = 'Approved'
+         SET approval_status = 'Approved',
+             completed_at = NOW()
          WHERE id = $1`,
         [id]
       );
@@ -819,6 +823,7 @@ router.put('/:id/approval', async (req, res) => {
       await db.query(
         `UPDATE projects
          SET approval_status = 'Rejected',
+             completed_at = NULL,
              status_id = $1
          WHERE id = $2`,
         [revisionStatusId, id]

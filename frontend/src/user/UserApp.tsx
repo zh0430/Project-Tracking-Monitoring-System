@@ -13,9 +13,9 @@ export interface TaskDocument {
   name: string;
   type: string;
   size: number;
-  fileData: string;   // ✅ use this ONLY
+  fileData: string;
   uploadedAt: string;
-  file?: File;   // 👈 ADD THIS
+  file?: File;
 }
 
 export interface ProjectTimeline {
@@ -38,6 +38,7 @@ export interface Project {
   workCategory: 'Routine' | 'Cost Roll' | 'Enhancement' | 'Others';
   status: 'To Do' | 'In Progress' | 'Completed' | 'Revision Required';
   createdAt: string;
+  completedAt?: string;
   approvalStatus?: string;
   documents?: TaskDocument[];
   timelines?: ProjectTimeline[];
@@ -49,8 +50,6 @@ export interface User {
   email: string;
   phoneNumber: string;
   department: string;
-  emailNotifications: boolean;
-  taskReminders: boolean;
   profilePicture?: string;
   role: string;
   mustChangePassword?: boolean;
@@ -67,7 +66,7 @@ const ProjectSubmissionFormWrapper = () => {
 
     const formData = new FormData();
 
-    formData.append("title", projectData.title);   // 🔥 MISSING LINE (CRITICAL)
+    formData.append("title", projectData.title);
     formData.append("assignedUserId", user.userId);
     formData.append("description", projectData.description);
     formData.append("dueDate", projectData.dueDate || "");
@@ -148,11 +147,12 @@ const HistoricalProjectWrapper = () => {
           workCategory: 'Others',
           status: p.status,
           createdAt: p.createdAt,
+          completedAt: p.completedAt,
           approvalStatus: p.approvalStatus,
           documents: Array.isArray(p.documents)
             ? p.documents.map((d: any) => ({
                 id: d.documentID || d.id || Date.now().toString(),
-                name: d.fileName || d.name,          // original filename
+                name: d.fileName || d.name,
                 type: d.fileType || d.type || '',
                 size: Number(d.fileSize || d.size || 0),
                 fileData: d.fileData || d.url || '',
@@ -162,7 +162,7 @@ const HistoricalProjectWrapper = () => {
           timelines: (p.timelines || []).map((t: any) => ({
             id: t.id,
             title: t.title,
-            description: t.description,   // ⭐ ADD THIS
+            description: t.description,
             startDate: t.startDate,
             endDate: t.endDate,
             status: t.status,
@@ -215,11 +215,12 @@ function MainUserApp() {
           workCategory: 'Others',
           status: p.status,
           createdAt: p.createdAt,
+          completedAt: p.completedAt,
           approvalStatus: p.approvalStatus,
           documents: Array.isArray(p.documents)
             ? p.documents.map((d: any) => ({
                 id: d.documentID || d.id || Date.now().toString(),
-                name: d.fileName || d.name,          // original filename
+                name: d.fileName || d.name,
                 type: d.fileType || d.type || '',
                 size: Number(d.fileSize || d.size || 0),
                 fileData: d.fileData || d.url || '',
@@ -229,7 +230,7 @@ function MainUserApp() {
           timelines: (p.timelines || []).map((t: any) => ({
             id: t.id,
             title: t.title,
-            description: t.description,   // ⭐ ADD THIS
+            description: t.description,
             startDate: t.startDate,
             endDate: t.endDate,
             status: t.status,
@@ -275,7 +276,7 @@ function MainUserApp() {
 
         const mergedUser = {
           ...existingUser,
-          ...data, // refresh server-truth fields
+          ...data,
         };
 
         setUser(mergedUser);
@@ -311,7 +312,6 @@ function MainUserApp() {
     formData.append("description", projectData.description);
     formData.append("dueDate", projectData.dueDate || "");
 
-    // Append files
     if (projectData.documents) {
       projectData.documents.forEach((file: File) => {
         formData.append("documents", file);
@@ -349,18 +349,14 @@ function MainUserApp() {
     if (updates.documents) {
       updates.documents.forEach((doc: any) => {
         if (doc.file) {
-          // new upload
           formData.append("documents", doc.file);
         } else if (doc.fileData || doc.fileStoreName) {
-          // ✅ KEEP existing documents
           existingDocs.push(doc);
         }
       });
     }
 
     formData.append("existingDocuments", JSON.stringify(existingDocs));
-
-    // ✅ ADD THIS LINE (Fix timeline deletion)
     formData.append("timelines", JSON.stringify(updates.timelines || []));
 
     fetch(`http://localhost:5000/api/projects/${projectId}`, {
@@ -396,7 +392,7 @@ function MainUserApp() {
         return res.json();
       })
       .then(() => {
-        fetchProjects(); // 🔥 Refresh projects from DB
+        fetchProjects();
         showSuccessMessage("Project deleted successfully.");
       })
       .catch(error => {
@@ -411,6 +407,7 @@ function MainUserApp() {
     fetch("http://localhost:5000/api/users/me", {
       method: "PUT",
       headers: {
+        "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify(updates),
@@ -422,9 +419,16 @@ function MainUserApp() {
         return res.json();
       })
       .then(updatedUser => {
-        setUser(updatedUser);
-        localStorage.setItem("user", JSON.stringify(updatedUser));
-        navigate('dashboard');
+        const existingUser = JSON.parse(localStorage.getItem("user")!);
+
+        const mergedUser = {
+          ...existingUser,
+          ...updatedUser,
+        };
+
+        setUser(mergedUser);
+        localStorage.setItem("user", JSON.stringify(mergedUser));
+
         showSuccessMessage('Profile updated successfully.');
       })
       .catch(error => {
@@ -483,7 +487,6 @@ function MainUserApp() {
   const storedUser = localStorage.getItem("user");
   const userRole = storedUser ? JSON.parse(storedUser).role : null;
   
-  // Updated authentication check - user is NOT authenticated if they need to change password
   const isAuthenticated =
     !!token &&
     userRole === "user" &&
@@ -498,7 +501,6 @@ function MainUserApp() {
     );
   }
 
-  // This should not happen due to above checks, but added for type safety
   if (!user) return null;
 
   return (

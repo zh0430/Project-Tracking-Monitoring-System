@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { User } from '../App';
-import { Settings, User as UserIcon, Bell, AlertTriangle, Upload, X, Lock, Eye, EyeOff } from 'lucide-react';
+import { Settings, User as UserIcon, AlertTriangle, Upload, X, Lock, Eye, EyeOff } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 interface UserSettingsProps {
@@ -24,10 +24,6 @@ export function UserSettings({
     email: user.email,
     phoneNumber: user.phoneNumber,
     department: user.department,
-  });
-  const [preferences, setPreferences] = useState({
-    emailNotifications: user.emailNotifications,
-    taskReminders: user.taskReminders,
   });
   const [profilePicture, setProfilePicture] = useState(user.profilePicture);
   
@@ -91,7 +87,15 @@ export function UserSettings({
   };
 
   const handleSaveProfile = () => {
-    onUpdateUser(profileData);
+    const { fullName, email, phoneNumber, department } = profileData;
+
+    onUpdateUser({
+      fullName,
+      email,
+      phoneNumber,
+      department,
+    });
+
     setIsEditingProfile(false);
   };
 
@@ -104,12 +108,6 @@ export function UserSettings({
       department: user.department,
     });
     setIsEditingProfile(false);
-  };
-
-  const handlePreferenceChange = (key: keyof typeof preferences, value: boolean) => {
-    const newPreferences = { ...preferences, [key]: value };
-    setPreferences(newPreferences);
-    onUpdateUser(newPreferences);
   };
 
   const handleChangePassword = async () => {
@@ -274,10 +272,8 @@ export function UserSettings({
                     <input
                       type="text"
                       value={profileData.userId}
-                      onChange={(e) =>
-                        setProfileData({ ...profileData, userId: e.target.value })
-                      }
-                      className="w-full px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-gray-400"
+                      disabled
+                      className="w-full px-4 py-2 border border-gray-300 rounded bg-gray-100 text-gray-600"
                     />
                   ) : (
                     <div className="text-gray-900">{user.userId}</div>
@@ -488,58 +484,6 @@ export function UserSettings({
                 >
                   Update Password
                 </button>
-              </div>
-            </div>
-          </div>
-
-          {/* System Preferences Section */}
-          <div className="bg-white border border-gray-200 rounded-lg">
-            <div className="p-6 border-b border-gray-200 flex items-center gap-2">
-              <Bell className="w-5 h-5 text-gray-700" />
-              <h3 className="text-gray-900">System Preferences</h3>
-            </div>
-            <div className="p-6 space-y-6">
-              {/* Email Notifications */}
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <div className="text-gray-900 mb-1">Email Notifications</div>
-                  <div className="text-gray-600 text-sm">
-                    Receive email updates for task assignments and status changes
-                  </div>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer ml-4">
-                  <input
-                    type="checkbox"
-                    checked={preferences.emailNotifications}
-                    onChange={(e) =>
-                      handlePreferenceChange('emailNotifications', e.target.checked)
-                    }
-                    className="sr-only peer"
-                  />
-                  <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-gray-400 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gray-800"></div>
-                </label>
-              </div>
-
-              {/* Task Reminders */}
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <div className="text-gray-900 mb-1">Task Reminders</div>
-                  <div className="text-gray-600 text-sm">
-                    Get reminders for upcoming deadlines through notifications at the top of
-                    the website
-                  </div>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer ml-4">
-                  <input
-                    type="checkbox"
-                    checked={preferences.taskReminders}
-                    onChange={(e) =>
-                      handlePreferenceChange('taskReminders', e.target.checked)
-                    }
-                    className="sr-only peer"
-                  />
-                  <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-gray-400 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gray-800"></div>
-                </label>
               </div>
             </div>
           </div>

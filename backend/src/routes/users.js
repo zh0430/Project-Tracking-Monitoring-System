@@ -16,6 +16,9 @@ router.get("/me", auth, async (req, res) => {
         u.public_user_id,
         u.name,
         u.email,
+        u.phone,
+        u.department,
+        u.profile_picture,
         u.must_change_password, 
         r.role_name
       FROM users u
@@ -32,14 +35,59 @@ router.get("/me", auth, async (req, res) => {
     }
 
     res.json({
-      userId: user.public_user_id, // ✅ Return public_user_id as string
+      userId: user.public_user_id,
       fullName: user.name,
       email: user.email,
+      phoneNumber: user.phone,
+      department: user.department,
+      profilePicture: user.profile_picture,
       role: user.role_name,
-      mustChangePassword: user.must_change_password, // 🔥 ADD THIS
+      mustChangePassword: user.must_change_password,
     });
   } catch (err) {
     console.error("User /me error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// Update user profile
+router.put("/me", auth, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { fullName, email, phoneNumber, department, profilePicture } = req.body;
+
+    const result = await pool.query(
+      `
+      UPDATE users
+      SET 
+        name = $1,
+        email = $2,
+        phone = $3,
+        department = $4,
+        profile_picture = $5
+      WHERE user_id = $6
+      RETURNING public_user_id, name, email, phone, department, profile_picture
+      `,
+      [fullName, email, phoneNumber, department, profilePicture, userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const updatedUser = result.rows[0];
+
+    res.json({
+      userId: updatedUser.public_user_id,
+      fullName: updatedUser.name,
+      email: updatedUser.email,
+      phoneNumber: updatedUser.phone,
+      department: updatedUser.department,
+      profilePicture: updatedUser.profile_picture,
+    });
+
+  } catch (err) {
+    console.error("Update user error:", err);
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -110,6 +158,32 @@ router.put("/change-password", auth, async (req, res) => {
     });
   } catch (err) {
     console.error("Change password error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// Delete user account
+router.delete("/me", auth, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    // First, delete related records (project_assignments, project_milestones)
+    await pool.query(`DELETE FROM project_assignments WHERE user_id = $1`, [userId]);
+    await pool.query(`DELETE FROM project_milestones WHERE project_id IN (SELECT id FROM projects WHERE id IN (SELECT project_id FROM project_assignments WHERE user_id = $1))`, [userId]);
+    
+    // Then delete the user
+    const result = await pool.query(
+      `DELETE FROM users WHERE user_id = $1 RETURNING user_id`,
+      [userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    res.json({ message: "Account deleted successfully" });
+  } catch (err) {
+    console.error("Delete user error:", err);
     res.status(500).json({ message: "Server error" });
   }
 });
