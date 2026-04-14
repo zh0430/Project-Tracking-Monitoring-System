@@ -6,7 +6,15 @@ interface ProjectDistributionChartProps {
   statuses: Status[];
 }
 
+/**
+ * PROJECT DISTRIBUTION CHART COMPONENT
+ * Visualizes project distribution across different status categories
+ * using a pie chart with color-coded segments for each status type.
+ * Helps quickly identify workload distribution and project progress.
+ */
+
 export function ProjectDistributionChart({ projects, statuses }: ProjectDistributionChartProps) {
+  // Calculate project count per status and filter out empty categories
   const statusCounts = statuses
     .map(status => ({
       name: status.statusName,
@@ -14,6 +22,7 @@ export function ProjectDistributionChart({ projects, statuses }: ProjectDistribu
     }))
     .filter(item => item.value > 0);
 
+  // Color mapping for different project statuses
   const COLORS = {
     'To Do': '#EF4444',        // Bright Red
     'In Progress': '#3B82F6',  // Bright Blue

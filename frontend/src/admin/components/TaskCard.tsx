@@ -8,6 +8,16 @@ interface TaskCardProps {
   onDelete: (taskId: string) => void;
 }
 
+/**
+ * TASK CARD COMPONENT
+ * Displays individual task with title, description, priority, assignee, due date,
+ * and estimated hours. Features include:
+ * - Edit mode with inline form for task details
+ * - Status management dropdown (To Do, In Progress, Completed)
+ * - Delete functionality
+ * - Priority-based color coding (High: red, Medium: yellow, Low: green)
+ */
+
 export function TaskCard({ task, onUpdate, onDelete }: TaskCardProps) {
   const [showMenu, setShowMenu] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -29,6 +39,7 @@ export function TaskCard({ task, onUpdate, onDelete }: TaskCardProps) {
     setShowMenu(false);
   };
 
+  // Edit mode view
   if (isEditing) {
     return (
       <div className="bg-white p-4 rounded-lg border border-gray-200 space-y-3">
@@ -93,6 +104,7 @@ export function TaskCard({ task, onUpdate, onDelete }: TaskCardProps) {
     );
   }
 
+  // Display mode view
   return (
     <div className="bg-white p-4 rounded-lg border border-gray-200 hover:shadow-md transition-shadow">
       <div className="flex items-start justify-between mb-3">

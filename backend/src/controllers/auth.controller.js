@@ -1,12 +1,20 @@
+// Import database connection
 const pool = require("../config/db");
+
+// Import bcrypt for password hashing
 const bcrypt = require("bcrypt");
+
+// Import JWT for authentication tokens
 const jwt = require("jsonwebtoken");
 
+
+// ================= REGISTER FUNCTION =================
 exports.register = async (req, res) => {
+  // Get user input from request body
   const { name, email, password } = req.body;
 
   try {
-    // Check if user already exists
+    // 1. Check if user already exists (based on email)
     const userExists = await pool.query(
       "SELECT user_id FROM users WHERE email = $1",
       [email]
@@ -16,31 +24,41 @@ exports.register = async (req, res) => {
       return res.status(400).json({ message: "User already exists" });
     }
 
-    // Get USER role from roles table
+    // 2. Get default role ("user") from roles table
     const roleResult = await pool.query(
       "SELECT role_id FROM roles WHERE role_name = 'user'"
     );
     
+    // If role not found → server error
     if (roleResult.rows.length === 0) {
       return res.status(500).json({ message: "Default role not found" });
     }
     
     const roleId = roleResult.rows[0].role_id;
 
-    // Hash password
+    // 3. Hash user's password before saving
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create new user (without public_user_id initially)
+    // 4. Insert new user into database (without public_user_id first)
     const result = await pool.query(
       `INSERT INTO users (name, email, password_hash, role_id, must_change_password, temp_password, token_version)
        VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING user_id, email, name`,
-      [name, email, hashedPassword, roleId, false, null, 0] // Start with token_version = 0
+      [
+        name,
+        email,
+        hashedPassword,
+        roleId,
+        false,     // must_change_password = false (normal user)
+        null,      // temp_password = null
+        0          // token_version starts at 0
+      ]
     );
 
+    // Get auto-generated user_id
     const userId = result.rows[0].user_id;
     
-    // Generate public user ID
+    // 5. Generate public user ID (e.g., USR-000001)
     const publicUserId = `USR-${String(userId).padStart(6, "0")}`;
     
     // Update user with public_user_id
@@ -49,23 +67,23 @@ exports.register = async (req, res) => {
       [publicUserId, userId]
     );
 
-    // Generate JWT token with token version
+    // 6. Generate JWT token (used for authentication)
     const token = jwt.sign(
       { 
         userId: userId, 
         publicUserId: publicUserId,
         role: "user",
-        tokenVersion: 0, // 🔥 ADD THIS
+        tokenVersion: 0, // used for token invalidation logic
       },
       process.env.JWT_SECRET,
-      { expiresIn: "1d" }
+      { expiresIn: "1d" } // token expires in 1 day
     );
 
-    // Return response with public_user_id
+    // 7. Send response to client
     res.status(201).json({
       token,
       user: {
-        userId: publicUserId,   // ✅ Return public_user_id as string
+        userId: publicUserId,   // return public ID instead of internal ID
         fullName: name,
         email: result.rows[0].email,
         role: "user",
@@ -73,17 +91,22 @@ exports.register = async (req, res) => {
         tempPassword: null
       }
     });
+
   } catch (err) {
+    // Handle unexpected errors
     console.error(err);
     res.status(500).json({ message: "Registration failed" });
   }
 };
 
+
+// ================= LOGIN FUNCTION =================
 exports.login = async (req, res) => {
+  // Get login credentials from request body
   const { email, password } = req.body;
 
   try {
-    // Get user with role information including token_version
+    // 1. Fetch user data + role from database
     const result = await pool.query(
       `SELECT 
          u.user_id,
@@ -101,35 +124,36 @@ exports.login = async (req, res) => {
       [email]
     );
 
+    // If user not found
     if (result.rows.length === 0) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
     const user = result.rows[0];
 
-    // Verify password
+    // 2. Compare input password with hashed password
     const isMatch = await bcrypt.compare(password, user.password_hash);
     if (!isMatch) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
-    // Generate JWT token with token version
+    // 3. Generate JWT token
     const token = jwt.sign(
       { 
         userId: user.user_id, 
         publicUserId: user.public_user_id,
         role: user.role_name,
-        tokenVersion: user.token_version, // 🔥 ADD THIS
+        tokenVersion: user.token_version, // used for session control
       },
       process.env.JWT_SECRET,
       { expiresIn: "1d" }
     );
 
-    // Return response with public_user_id and additional fields
+    // 4. Send login response
     res.json({
       token,
       user: {
-        userId: user.public_user_id, // ✅ USR-000006 format
+        userId: user.public_user_id, // public ID (USR-xxxxxx)
         fullName: user.name,
         email: user.email,
         role: user.role_name,
@@ -137,7 +161,9 @@ exports.login = async (req, res) => {
         tempPassword: user.temp_password,
       }
     });
+
   } catch (err) {
+    // Handle unexpected errors
     console.error(err);
     res.status(500).json({ message: "Login failed" });
   }

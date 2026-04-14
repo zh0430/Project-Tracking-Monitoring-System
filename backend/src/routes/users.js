@@ -4,6 +4,12 @@ const pool = require("../config/db");
 const auth = require("../middleware/auth.middleware");
 const bcrypt = require("bcrypt");
 
+/**
+ * USER PROFILE ROUTES
+ * Handles user profile management including viewing profile, updating information,
+ * changing password, and account deletion. All routes require authentication.
+ */
+
 // Get current user profile
 router.get("/me", auth, async (req, res) => {
   try {

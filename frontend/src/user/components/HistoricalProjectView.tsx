@@ -14,6 +14,17 @@ interface HistoricalProjectViewProps {
   onBack: () => void;
 }
 
+/**
+ * HISTORICAL PROJECT VIEW COMPONENT
+ * Displays completed and approved projects (historical workload) with filtering and export capabilities.
+ * Features include:
+ * - Filtering by project ID, title, and completion date range
+ * - Export to Excel, PDF, and Word formats
+ * - Tabular view with project details (ID, title, description, priority, approval status, etc.)
+ * - Document count indicator
+ * - Read-only project detail modal for viewing historical project information
+ */
+
 export function HistoricalProjectView({ projects, onBack }: HistoricalProjectViewProps) {
   const [filters, setFilters] = useState({
     projectId: '',
@@ -24,6 +35,7 @@ export function HistoricalProjectView({ projects, onBack }: HistoricalProjectVie
   const [showFilters, setShowFilters] = useState(false);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
 
+  // Filter only completed and approved projects (historical workload)
   const completedProjects = projects.filter(
     project =>
       project.status === 'Completed' &&
@@ -51,7 +63,7 @@ export function HistoricalProjectView({ projects, onBack }: HistoricalProjectVie
     }
   };
 
-  // Apply filters
+  // Apply filters to historical projects
   const filteredProjects = completedProjects.filter((project) => {
     if (
       filters.projectId &&

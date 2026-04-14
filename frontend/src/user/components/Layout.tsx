@@ -9,6 +9,17 @@ interface LayoutProps {
   onLogout?: () => void;
 }
 
+/**
+ * LAYOUT COMPONENT (Employee Panel)
+ * Main layout wrapper for the employee user interface with sidebar navigation.
+ * Features include:
+ * - Collapsible user dropdown menu with profile info and settings
+ * - Sidebar navigation with active route highlighting
+ * - Forced password change restriction (blocks access to non-settings routes)
+ * - Success message display area
+ * - Responsive layout with Outlet for nested route rendering
+ */
+
 export function Layout({
   user,
   successMessage,

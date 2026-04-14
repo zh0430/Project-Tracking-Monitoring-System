@@ -4,6 +4,12 @@ const path = require('path');
 
 const app = express();
 
+/**
+ * EXPRESS APPLICATION CONFIGURATION
+ * Main server setup file that configures middleware, CORS settings,
+ * static file serving, and registers all API route handlers.
+ */
+
 // Import routes
 const authRoutes = require("./routes/auth.routes");
 const adminRoutes = require("./routes/admin");

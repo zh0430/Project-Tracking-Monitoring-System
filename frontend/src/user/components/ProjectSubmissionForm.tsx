@@ -7,6 +7,19 @@ interface ProjectSubmissionFormProps {
   onCancel: () => void;
 }
 
+/**
+ * PROJECT SUBMISSION FORM COMPONENT (Employee View)
+ * Form for employees to create and submit new projects for admin approval.
+ * Features include:
+ * - Form validation for required fields (title, description)
+ * - Priority selection (Not set, Low, Medium, High)
+ * - Due date picker (datetime-local)
+ * - Project timeline/milestone management with add/delete functionality
+ * - Document upload with file preview and delete capability
+ * - Visual timeline display with status colors
+ * - Submits project data to parent component for API integration
+ */
+
 export function ProjectSubmissionForm({ onSubmit, onCancel }: ProjectSubmissionFormProps) {
   const [formData, setFormData] = useState({
     title: '',

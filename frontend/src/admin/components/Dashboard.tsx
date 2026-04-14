@@ -8,6 +8,16 @@ interface DashboardProps {
   tasks: Task[];
 }
 
+/**
+ * DASHBOARD COMPONENT
+ * Main dashboard displaying task analytics and metrics including:
+ * - Task counts by status (To Do, In Progress, Completed)
+ * - High priority task tracking
+ * - Total workload hours estimation
+ * - Task completion rate percentage
+ * - Visual charts for status distribution, priority distribution, and workload analysis
+ */
+
 export function Dashboard({ tasks }: DashboardProps) {
   const todoTasks = tasks.filter(t => t.status === 'todo').length;
   const inProgressTasks = tasks.filter(t => t.status === 'in-progress').length;

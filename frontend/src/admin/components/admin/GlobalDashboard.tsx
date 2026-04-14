@@ -15,6 +15,14 @@ interface GlobalDashboardProps {
 
 type SortOption = 'NAME_ASC' | 'NAME_DESC' | 'WORKLOAD';
 
+/**
+ * GLOBAL DASHBOARD COMPONENT
+ * Main administrative dashboard providing organization-wide overview including:
+ * - Key metrics (employee count, active/completed projects, high priority tasks)
+ * - Employee list with sorting by name or workload
+ * - Visual charts for project distribution and incomplete projects analysis
+ */
+
 export function GlobalDashboard({
   projects,
   employees,

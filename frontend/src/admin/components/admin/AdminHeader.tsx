@@ -8,11 +8,19 @@ interface AdminHeaderProps {
   onLogout: () => void;
 }
 
+/**
+ * ADMIN HEADER COMPONENT
+ * Displays the admin user dropdown menu with profile information,
+ * settings navigation, and logout functionality. Closes automatically
+ * when clicking outside the component.
+ */
+
 export function AdminHeader({ admin, onLogout }: AdminHeaderProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
+  // Handle click outside to close dropdown
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) {

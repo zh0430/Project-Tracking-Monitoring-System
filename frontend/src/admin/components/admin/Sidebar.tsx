@@ -14,10 +14,19 @@ interface SidebarProps {
   onToggle: () => void;
 }
 
+/**
+ * SIDEBAR COMPONENT
+ * Collapsible navigation sidebar for admin panel with responsive design.
+ * Supports mobile overlay, collapsible menu items, and active route highlighting.
+ * Provides quick access to dashboard, user management, employee summary,
+ * Gantt chart, and settings pages.
+ */
+
 export function Sidebar({ isOpen, onToggle }: SidebarProps) {
   const navigate = useNavigate();
   const location = useLocation();
 
+  // Navigation menu items configuration
   const menuItems = [
     {
       path: '/admin/dashboard',
@@ -48,7 +57,7 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
 
   return (
     <>
-      {/* Mobile overlay */}
+      {/* Mobile overlay - closes sidebar when clicking outside on mobile */}
       {isOpen && (
         <div
           className="fixed inset-0 bg-black bg-opacity-50 z-20 lg:hidden"

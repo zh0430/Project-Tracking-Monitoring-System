@@ -14,6 +14,19 @@ import {
   ImageRun
 } from 'docx';
 
+/**
+ * EXPORT UTILITIES MODULE
+ * Comprehensive export functionality supporting Excel, PDF, and Word formats
+ * for various data types including:
+ * - Project lists
+ * - User/employee data
+ * - Employee summaries with active/historical workload
+ * - Historical completed projects
+ * - Gantt charts with image capture
+ * 
+ * Uses multiple libraries: XLSX, jsPDF, ExcelJS, docx, and modern-screenshot
+ */
+
 /* =====================================================
    PROJECT LIST EXPORT (ManageProject.tsx)
 ===================================================== */
@@ -634,7 +647,7 @@ export const exportGanttWord = async (
 };
 
 /* =====================================================
-   SHARED
+   SHARED UTILITIES
 ===================================================== */
 
 const downloadBlob = (blob: Blob, filename: string) => {

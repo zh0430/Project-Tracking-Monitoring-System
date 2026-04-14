@@ -36,6 +36,16 @@ const formatForInput = (dateString?: string) => {
   return localDate.toISOString().slice(0, 16);
 };
 
+/**
+ * UPDATE STATUS PRIORITY COMPONENT
+ * Comprehensive project management interface for admin users to:
+ * - View and edit project details (status, priority, due date)
+ * - Manage project milestones/timelines with full CRUD operations
+ * - Upload and manage project documents
+ * - Review user-uploaded documents
+ * - Track project progress and completion
+ */
+
 export function UpdateStatusPriority({
   task,
   project,
@@ -66,6 +76,7 @@ export function UpdateStatusPriority({
   const currentStatus = statuses.find(s => s.statusID === task.statusID);
   const currentPriority = priorities.find(p => p.priorityID === task.priorityID);
 
+  // Handle project update with automatic completion date management
   const handleUpdate = () => {
     // If status is changed to completed, set completed date
     const newStatus = statuses.find(s => s.statusID === updatedTask.statusID);
@@ -86,6 +97,7 @@ export function UpdateStatusPriority({
     });
   };
 
+  // Add new milestone to project timeline
   const handleAddMilestone = () => {
     if (!newMilestone.title || !newMilestone.startDate || !newMilestone.endDate) {
       alert("Please fill all required fields");

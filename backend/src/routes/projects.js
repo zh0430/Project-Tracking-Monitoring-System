@@ -6,6 +6,13 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 
+/**
+ * PROJECT MANAGEMENT ROUTES
+ * Handles full CRUD operations for projects including file uploads, document management,
+ * milestone tracking, user assignments, and project approvals.
+ * Most routes require authentication. Supports file uploads via multer middleware.
+ */
+
 // Ensure uploads directory exists
 const uploadsDir = path.join(__dirname, '../../uploads');
 if (!fs.existsSync(uploadsDir)) {

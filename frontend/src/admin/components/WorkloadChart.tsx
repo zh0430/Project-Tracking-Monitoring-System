@@ -5,8 +5,15 @@ interface WorkloadChartProps {
   tasks: Task[];
 }
 
+/**
+ * WORKLOAD CHART COMPONENT
+ * Visualizes team workload distribution using a stacked bar chart showing
+ * estimated hours per assignee broken down by task status (To Do, In Progress, Completed).
+ * Helps identify workload balance and resource allocation across team members.
+ */
+
 export function WorkloadChart({ tasks }: WorkloadChartProps) {
-  // Group tasks by assignee
+  // Group tasks by assignee and aggregate estimated hours by status
   const workloadByAssignee = tasks.reduce((acc, task) => {
     if (!acc[task.assignee]) {
       acc[task.assignee] = {

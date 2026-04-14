@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, Bell, UserPlus, Upload, FileText, Trash2 } from 'lucide-react';
+import { X, UserPlus, Upload, FileText, Trash2 } from 'lucide-react';
 import { Task, Employee, Priority, Status, TaskDocument, ProjectTimeline } from '../../App';
 
 interface AssignTaskModalProps {
@@ -11,6 +11,13 @@ interface AssignTaskModalProps {
   onClose: () => void;
   onAssign: (task: Task) => void;
 }
+
+/**
+ * ASSIGN TASK MODAL COMPONENT
+ * Main modal for creating and assigning new projects/tasks to employees.
+ * Supports multiple employee assignment, file uploads, timeline management,
+ * and form validation. Integrates with backend API for project creation.
+ */
 
 export function AssignTaskModal({
   employeeId,
@@ -31,7 +38,6 @@ export function AssignTaskModal({
     statusID: statuses[0]?.statusID || '',
     dueDate: '',
   });
-  const [showNotification, setShowNotification] = useState(false);
   const [documents, setDocuments] = useState<any[]>([]);
   const [timelines, setTimelines] = useState<ProjectTimeline[]>([]);
   const [newTimeline, setNewTimeline] = useState({
@@ -44,6 +50,7 @@ export function AssignTaskModal({
   });
   const [showAddTimeline, setShowAddTimeline] = useState(false);
 
+  // Toggle employee selection for multi-assign
   const toggleEmployee = (empId: string) => {
     if (selectedEmployees.includes(empId)) {
       setSelectedEmployees(selectedEmployees.filter(id => id !== empId));
@@ -52,6 +59,7 @@ export function AssignTaskModal({
     }
   };
 
+  // Handle file upload and store file objects for FormData
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
@@ -73,6 +81,7 @@ export function AssignTaskModal({
     setDocuments(documents.filter(d => d.documentID !== documentId));
   };
 
+  // Add new timeline entry to project progress
   const handleAddTimeline = () => {
     if (!newTimeline.title || !newTimeline.startDate || !newTimeline.endDate) {
       alert('Please fill in all timeline fields');
@@ -140,6 +149,7 @@ export function AssignTaskModal({
     }
   };
 
+  // Submit project with FormData for file uploads
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -204,13 +214,8 @@ export function AssignTaskModal({
       const newProjectData = await response.json();
       console.log(`Project created successfully for users:`, selectedEmployees);
       
-      // Show notification confirmation
-      setShowNotification(true);
-      setTimeout(() => {
-        setShowNotification(false);
-        // Just close modal after success
-        onClose();
-      }, 2000);
+      // Just close modal after success
+      onClose();
     } catch (error) {
       console.error('Error creating project:', error);
       alert('Failed to create project. Please try again.');
@@ -234,6 +239,7 @@ export function AssignTaskModal({
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {/* Basic Project Information */}
           <div>
             <label className="block text-gray-700 mb-2">
               Project Title <span className="text-red-600">*</span>
@@ -262,6 +268,7 @@ export function AssignTaskModal({
             />
           </div>
 
+          {/* Priority and Status Selection */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-gray-700 mb-2">
@@ -314,7 +321,7 @@ export function AssignTaskModal({
             />
           </div>
 
-          {/* Employee Selection */}
+          {/* Employee Selection - Supports Multiple Selection */}
           <div>
             <label className="flex items-center gap-2 text-gray-700 mb-2">
               <UserPlus className="w-4 h-4" />
@@ -347,7 +354,7 @@ export function AssignTaskModal({
             </p>
           </div>
 
-          {/* Project Progress Timeline */}
+          {/* Project Progress Timeline Section */}
           <div className="border-t border-gray-300 pt-4">
             <div className="flex items-center justify-between mb-3">
               <h4 className="text-gray-900">Project Progress Timeline</h4>
@@ -498,7 +505,7 @@ export function AssignTaskModal({
             )}
           </div>
 
-          {/* Document Upload */}
+          {/* Document Upload Section */}
           <div>
             <label className="block text-gray-700 mb-2">
               <Upload className="w-4 h-4 inline mr-1" />
@@ -547,20 +554,13 @@ export function AssignTaskModal({
             )}
           </div>
 
-          {/* Notification Info */}
-          <div className="flex items-center gap-2 p-4 bg-gray-50 rounded-lg border border-gray-300">
-            <Bell className="w-5 h-5 text-gray-600" />
-            <p className="text-gray-700 text-sm">
-              Selected employees will be notified when this project is assigned
-            </p>
-          </div>
-
+          {/* Form Action Buttons */}
           <div className="flex gap-3 pt-4">
             <button
               type="submit"
               className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
             >
-              Assign Project & Notify
+              Assign Project
             </button>
             <button
               type="button"
@@ -571,14 +571,6 @@ export function AssignTaskModal({
             </button>
           </div>
         </form>
-
-        {/* Notification Success Message */}
-        {showNotification && (
-          <div className="absolute top-4 right-4 bg-red-600 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 animate-fade-in">
-            <Bell className="w-5 h-5" />
-            <span>Project assigned and notification sent!</span>
-          </div>
-        )}
       </div>
     </div>
   );

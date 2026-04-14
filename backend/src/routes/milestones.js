@@ -3,6 +3,13 @@ const router = express.Router();
 const db = require('../config/db');
 const authenticate = require('../middleware/auth.middleware');
 
+/**
+ * PROJECT MILESTONES ROUTES
+ * Manages project milestones with CRUD operations
+ * Most write operations (POST, PUT, DELETE) require authentication
+ * Read operations (GET) are publicly accessible
+ */
+
 // GET milestones for a specific project - expects numeric project ID
 router.get('/project/:projectId', async (req, res) => {
   try {

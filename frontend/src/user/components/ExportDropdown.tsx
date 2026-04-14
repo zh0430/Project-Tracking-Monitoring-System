@@ -7,6 +7,15 @@ interface ExportDropdownProps {
   onExportWord: () => void;
 }
 
+/**
+ * EXPORT DROPDOWN COMPONENT
+ * Reusable dropdown menu providing export options for Excel, PDF, and Word formats.
+ * Features include:
+ * - Click outside to close functionality
+ * - Color-coded icons for each export type
+ * - Clean dropdown animation and hover effects
+ */
+
 export function ExportDropdown({
   onExportExcel,
   onExportPDF,
@@ -15,6 +24,7 @@ export function ExportDropdown({
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  // Close dropdown when clicking outside the component
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (

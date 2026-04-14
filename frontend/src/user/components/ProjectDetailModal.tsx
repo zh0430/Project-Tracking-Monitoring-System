@@ -48,6 +48,18 @@ const getFileIcon = (type?: string) => {
   return '📎';
 };
 
+/**
+ * PROJECT DETAIL MODAL COMPONENT
+ * Comprehensive modal for viewing and editing project details with full CRUD operations.
+ * Features include:
+ * - View/edit project metadata (title, description, priority, due date, status)
+ * - Project timeline/milestone management (add, edit, delete)
+ * - Document upload, download, and deletion
+ * - Delete confirmation dialog
+ * - Read-only mode for historical/completed projects
+ * - Locked state for approved completed projects (prevents editing)
+ */
+
 export function ProjectDetailModal({
   project,
   onClose,

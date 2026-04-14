@@ -5,7 +5,15 @@ interface StatusChartProps {
   tasks: Task[];
 }
 
+/**
+ * STATUS CHART COMPONENT
+ * Visualizes task distribution across different workflow statuses
+ * using a pie chart with color-coded segments (Gray for To Do, Blue for In Progress, Green for Completed).
+ * Provides quick overview of project progress and workload balance.
+ */
+
 export function StatusChart({ tasks }: StatusChartProps) {
+  // Count tasks by status
   const statusCounts = {
     todo: tasks.filter(t => t.status === 'todo').length,
     inProgress: tasks.filter(t => t.status === 'in-progress').length,

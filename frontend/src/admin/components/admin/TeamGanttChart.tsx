@@ -28,6 +28,18 @@ const formatDisplayDate = (dateString: string) => {
   });
 };
 
+/**
+ * TEAM GANTT CHART COMPONENT
+ * Interactive Gantt chart for visualizing project timelines across team members.
+ * Features include:
+ * - Employee and project filtering
+ * - Year and date range selection
+ * - Timeline visualization with progress bars
+ * - Milestone tracking and detailed project views
+ * - Export capabilities (Excel, PDF, Word)
+ * - Responsive design with scrollable timeline
+ */
+
 export function TeamGanttChart({ projects, employees, statuses, priorities }: TeamGanttChartProps) {
   const [searchEmployee, setSearchEmployee] = useState<string>('');
   const [searchProjectId, setSearchProjectId] = useState<string>('');
@@ -80,6 +92,7 @@ export function TeamGanttChart({ projects, employees, statuses, priorities }: Te
     return markers;
   }, [dateRange]);
 
+  // Calculate position percentage for timeline placement
   const calculatePosition = (date: string) => {
     const d = new Date(date);
     const dayOfYear = Math.floor((d.getTime() - dateRange.start.getTime()) / (1000 * 60 * 60 * 24));
@@ -87,6 +100,7 @@ export function TeamGanttChart({ projects, employees, statuses, priorities }: Te
     return Math.min(Math.max(value, 0), 100);
   };
 
+  // Calculate width percentage for timeline bars
   const calculateWidth = (startDate: string, endDate: string) => {
     const start = new Date(startDate);
     const end = new Date(endDate);
@@ -100,7 +114,7 @@ export function TeamGanttChart({ projects, employees, statuses, priorities }: Te
     return date.toLocaleDateString('en-US', { month: 'short' });
   };
 
-  // Filter projects
+  // Filter projects based on search criteria and date range
   const filteredProjects = useMemo(() => {
     let filtered = projects.filter(p => {
       const isAssigned = (p.assignedToUserIDs || []).length > 0;
@@ -154,7 +168,7 @@ export function TeamGanttChart({ projects, employees, statuses, priorities }: Te
     return filtered;
   }, [projects, searchEmployee, searchProjectId, employees, statuses, selectedYear, dateRange]);
 
-  // Group projects by employee
+  // Group projects by employee for organized display
   const projectsByEmployee = useMemo(() => {
     const grouped: { employee: Employee; projects: Project[] }[] = [];
 
@@ -187,6 +201,7 @@ export function TeamGanttChart({ projects, employees, statuses, priorities }: Te
     setToMonth(`${selectedYear}-12`);
   };
 
+  // Export handlers for different formats
   const handleExport = async (type: 'excel' | 'pdf' | 'word') => {
     const image = await captureElementImage(ganttRef.current);
     if (!image) return;
@@ -645,6 +660,12 @@ interface ProjectDetailsModalProps {
   statuses: Status[];
   onClose: () => void;
 }
+
+/**
+ * PROJECT DETAILS MODAL
+ * Modal component displaying detailed project information including
+ * assigned employees, status, dates, and timeline milestones.
+ */
 
 function ProjectDetailsModal({ project, employees, statuses, onClose }: ProjectDetailsModalProps) {
   const status = statuses.find(s => s.statusID === project.statusID);

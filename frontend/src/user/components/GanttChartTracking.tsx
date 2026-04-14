@@ -78,6 +78,19 @@ const formatExportDate = (date?: string) => {
   });
 };
 
+/**
+ * GANTT CHART TRACKING COMPONENT
+ * Interactive Gantt chart for employee users to track their assigned projects.
+ * Features include:
+ * - Timeline visualization with project bars and milestone markers
+ * - Date range filtering (month/year selection)
+ * - Project search by ID or title
+ * - Export functionality (Excel, PDF, Word)
+ * - Today's date indicator line
+ * - Status-based color coding for projects and milestones
+ * - Detailed project view modal
+ */
+
 export function GanttChartTracking({
   projects,
   user,

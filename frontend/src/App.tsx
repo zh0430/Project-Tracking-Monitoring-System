@@ -4,6 +4,16 @@ import UserApp from "./user/UserApp";
 import { Login } from "./user/components/Login";
 import { ForgotPasswordChange } from "./user/components/ForgotPasswordChange";
 
+/**
+ * MAIN APPLICATION ROOT COMPONENT
+ * Entry point for the entire application with routing configuration.
+ * Handles role-based navigation after authentication:
+ * - Admin users → /admin/dashboard
+ * - Regular users → /user/dashboard
+ * - Forced password change flow → /forgot-password-change
+ * - Catch-all redirect to login page
+ */
+
 function App() {
   const navigate = useNavigate();
 

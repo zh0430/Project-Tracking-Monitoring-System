@@ -9,6 +9,7 @@ import { Sidebar } from './components/admin/Sidebar';
 import { AdminHeader } from "./components/admin/AdminHeader";
 import { Routes, Route, Navigate, useNavigate, useParams } from "react-router-dom";
 
+// Type definitions for the entire application
 export interface Role {
   roleID: string;
   roleName: string;
@@ -94,16 +95,18 @@ export interface Admin {
   profilePicture?: string;
 }
 
-export interface Notification {
-  notificationID: string;
-  userID: string;
-  message: string;
-  taskID: string;
-  createdAt: string;
-  read: boolean;
-}
-
 type ViewType = 'dashboard' | 'users' | 'summary' | 'update' | 'settings' | 'gantt';
+
+/**
+ * ADMIN APPLICATION MAIN COMPONENT
+ * Central admin dashboard managing the entire application with features including:
+ * - Authentication and authorization checks
+ * - Data fetching from backend API (admin profile, employees, projects, tasks, etc.)
+ * - State management for all admin data
+ * - Route handling for different admin sections
+ * - CRUD operations for projects, tasks, employees, and admin settings
+ * - Integration with child components: GlobalDashboard, ManageUsers, EmployeeSummary, etc.
+ */
 
 export default function AdminApp() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -125,10 +128,9 @@ export default function AdminApp() {
   const [statuses, setStatuses] = useState<Status[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Fetch admin data from API
+  // Fetch admin data from API on component mount
   useEffect(() => {
     if (!isAuthenticated) {
       navigate("/");
@@ -154,7 +156,7 @@ export default function AdminApp() {
         const adminData = await adminResponse.json();
         setAdmin(adminData);
 
-        // Fetch all other data
+        // Fetch all other data in parallel
         await Promise.all([
           // Fetch roles
           fetch("http://localhost:5000/api/admin/roles", {
@@ -218,17 +220,7 @@ export default function AdminApp() {
             },
             credentials: "include",
           }).then(res => res.ok ? res.json() : []),
-          
-          // Fetch notifications
-          fetch("http://localhost:5000/api/admin/notifications", {
-            method: "GET",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
-            credentials: "include",
-          }).then(res => res.ok ? res.json() : []),
-        ]).then(([rolesData, employeesData, prioritiesData, statusesData, tasksData, projectsData, notificationsData]) => {
+        ]).then(([rolesData, employeesData, prioritiesData, statusesData, tasksData, projectsData]) => {
           setRoles(rolesData || []);
           
           // Transform employees data to use public_user_id
@@ -310,8 +302,6 @@ export default function AdminApp() {
           console.log("PROJECTS:", projectsData);
           console.log("PRIORITIES:", prioritiesData);
           console.log("STATUSES:", statusesData);
-          
-          setNotifications(notificationsData || []);
         });
       } catch (error) {
         console.error('Error fetching admin data:', error);
@@ -335,10 +325,9 @@ export default function AdminApp() {
         statuses,
         tasks,
         projects,
-        notifications,
       }));
     }
-  }, [admin, roles, employees, priorities, statuses, tasks, projects, notifications, isAuthenticated]);
+  }, [admin, roles, employees, priorities, statuses, tasks, projects, isAuthenticated]);
 
   const handleViewEmployeeSummary = (employeeId: string) => {
     navigate(`/admin/summary/${employeeId}`);
@@ -348,6 +337,7 @@ export default function AdminApp() {
     navigate(`/admin/update/${taskId}`);
   };
 
+  // Handle task/project update with API call
   const handleUpdateTask = async (updatedTask: Task, projectId: string) => {
     try {
       const token = localStorage.getItem("token");
@@ -424,45 +414,6 @@ export default function AdminApp() {
             : t
         )
       );
-      
-      // If status changed to "Revision Required", send notifications
-      const oldTask = tasks.find(t => t.taskID === updatedTask.taskID);
-      if (oldTask && oldTask.statusID !== updatedTask.statusID && updatedTask.statusID === '4') {
-        const assignedUserIDs = Array.isArray(updatedTask.assignedToUserID) 
-          ? updatedTask.assignedToUserID 
-          : [updatedTask.assignedToUserID];
-        
-        // Create notifications via API
-        await Promise.all(
-          assignedUserIDs.map(userID => 
-            fetch("http://localhost:5000/api/admin/notifications", {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${token}`,
-              },
-              credentials: "include",
-              body: JSON.stringify({
-                userID,
-                message: `Project requires revision: ${updatedTask.title}`,
-                taskID: updatedTask.taskID,
-              }),
-            })
-          )
-        );
-
-        // Refresh notifications
-        const notificationsResponse = await fetch("http://localhost:5000/api/admin/notifications", {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          credentials: "include",
-        });
-        const newNotifications = await notificationsResponse.json();
-        setNotifications(newNotifications || []);
-      }
 
       // Navigate back to employee summary
       if (updatedTask.assignedToUserID) {
@@ -597,44 +548,6 @@ export default function AdminApp() {
         const updatedTasks = await tasksResponse.json();
         setTasks(updatedTasks);
       }
-      
-      // Commented out notifications for now
-      /*
-      // Create notifications for assigned employees
-      const assignedUserIDs = Array.isArray(task.assignedToUserID) 
-        ? task.assignedToUserID 
-        : [task.assignedToUserID];
-      
-      await Promise.all(
-        assignedUserIDs.map(userID => 
-          fetch("http://localhost:5000/api/admin/notifications", {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${token}`,
-            },
-            credentials: "include",
-            body: JSON.stringify({
-              userID,
-              message: `New project assigned: ${task.title}`,
-              taskID: newProject.taskId,
-            }),
-          })
-        )
-      );
-
-      // Refresh notifications
-      const notificationsResponse = await fetch("http://localhost:5000/api/admin/notifications", {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        credentials: "include",
-      });
-      const updatedNotifications = await notificationsResponse.json();
-      setNotifications(updatedNotifications || []);
-      */
     } catch (error) {
       console.error('Error adding project:', error);
     }

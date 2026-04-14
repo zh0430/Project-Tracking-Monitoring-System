@@ -9,6 +9,21 @@ interface UserSettingsProps {
   onDeleteAccount: () => void;
 }
 
+/**
+ * USER SETTINGS COMPONENT (Employee View)
+ * Comprehensive settings panel for employee users with three main sections:
+ * 1. Profile Management - Edit personal info, upload/remove profile picture
+ * 2. Account Security - Change password with strength validation
+ * 3. Danger Zone - Account deletion with confirmation modal
+ * 
+ * Special Features:
+ * - Forced password change mode when user.mustChangePassword is true
+ * - Password strength indicator (Weak/Fair/Good/Strong)
+ * - Profile picture upload with preview and removal
+ * - Real-time password validation and error handling
+ * - Account deletion confirmation with irreversible warning
+ */
+
 export function UserSettings({
   user,
   onUpdateUser,

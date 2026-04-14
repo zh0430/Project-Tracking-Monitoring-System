@@ -4,6 +4,12 @@ const pool = require("./config/db");
 
 const PORT = process.env.PORT || 5000;
 
+/**
+ * SERVER ENTRY POINT
+ * Initializes the Express server, establishes database connection,
+ * and handles graceful shutdown on termination signals.
+ */
+
 // Test database connection on server start
 pool.connect((err, client, release) => {
   if (err) {

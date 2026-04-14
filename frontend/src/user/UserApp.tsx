@@ -56,6 +56,20 @@ export interface User {
   tempPassword?: string | null;
 }
 
+/**
+ * USER APPLICATION MAIN COMPONENT
+ * Main entry point for the employee user portal with full CRUD operations.
+ * Features include:
+ * - Authentication check and user data fetching
+ * - Project management (create, read, update, delete)
+ * - Project submission with file uploads and timeline milestones
+ * - Historical project view for completed/approved projects
+ * - Gantt chart tracking for project visualization
+ * - User profile management and account deletion
+ * - Role-based access control (user role only)
+ * - Real-time data synchronization with backend API
+ */
+
 // Wrapper components for direct routing
 const ProjectSubmissionFormWrapper = () => {
   const navigate = useNavigate();

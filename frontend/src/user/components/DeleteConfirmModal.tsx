@@ -6,6 +6,13 @@ interface DeleteConfirmModalProps {
   onCancel: () => void;
 }
 
+/**
+ * DELETE CONFIRMATION MODAL COMPONENT
+ * Modal dialog that prompts users to confirm task deletion with a warning.
+ * Displays the task title being deleted and warns that the action cannot be undone.
+ * Provides Cancel and Delete buttons for user decision.
+ */
+
 export function DeleteConfirmModal({
   taskTitle,
   onConfirm,

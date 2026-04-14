@@ -33,6 +33,13 @@ const formatDisplayDate = (date?: string) => {
   });
 };
 
+/**
+ * EMPLOYEE SUMMARY COMPONENT
+ * Main dashboard for viewing and managing employee projects with filtering, 
+ * Kanban board view for active projects, historical workload tracking, 
+ * project approval/rejection, and export functionality (Excel, PDF, Word).
+ */
+
 export function EmployeeSummary({
   employees,
   projects = [], // Default to empty array if undefined
@@ -56,6 +63,7 @@ export function EmployeeSummary({
   const [selectedProjectDetails, setSelectedProjectDetails] = useState<Project | null>(null);
   const [showExportMenu, setShowExportMenu] = useState(false);
 
+  // Validate employee exists in URL and redirect if needed
   useEffect(() => {
     if (employees.length === 0) return;
 
@@ -107,6 +115,7 @@ export function EmployeeSummary({
   // Debug log to see employee projects
   console.log("EMPLOYEE PROJECTS:", employeeProjects);
   
+  // Apply all filters to projects
   const filteredProjects = useMemo(() => {
     return employeeProjects.filter(project => {
       const status = statuses.find(s => s.statusID === project.statusID);
@@ -172,6 +181,7 @@ export function EmployeeSummary({
     });
   }, [employeeProjects, viewMode, filterSearchText, filterStartDate, filterEndDate, filterStatus, filterPriority, statuses]);
 
+  // Categorize projects by status for Kanban board
   const toDoProjects = useMemo(() => {
     return filteredProjects.filter(p => {
       const status = statuses.find(s => s.statusID === p.statusID);
@@ -228,6 +238,7 @@ export function EmployeeSummary({
 
   const role = roles.find(r => r.roleID === selectedEmployee.roleID);
 
+  // Export handler for Excel, PDF, and Word formats
   const handleExport = async (type: string) => {
     // ✅ ALWAYS USE FULL DATASET
     const allProjects = employeeProjects;
@@ -660,6 +671,12 @@ interface ProjectCardProps {
   fetchProjects?: () => Promise<void>;
 }
 
+/**
+ * PROJECT CARD COMPONENT
+ * Individual project card displayed in Kanban board columns.
+ * Includes update, delete, approve, and reject functionality.
+ */
+
 function ProjectCard({ project, priorities, statuses, employees, onDelete, fetchProjects }: ProjectCardProps) {
   const navigate = useNavigate();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -677,6 +694,7 @@ function ProjectCard({ project, priorities, statuses, employees, onDelete, fetch
 
   const isCompleted = status?.statusName === 'Completed';
 
+  // Handle project deletion - supports single or multi-assigned projects
   const handleDelete = () => {
     const isMultiAssigned = (project.assignedToUserIDs || []).length > 1;
 
@@ -757,7 +775,7 @@ function ProjectCard({ project, priorities, statuses, employees, onDelete, fetch
         )}
       </div>
 
-      {/* Delete Confirmation */}
+      {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg p-6 max-w-sm w-full">
@@ -926,6 +944,12 @@ interface ProjectDetailsModalProps {
   employees: Employee[];
   onClose: () => void;
 }
+
+/**
+ * PROJECT DETAILS MODAL COMPONENT
+ * Modal dialog displaying comprehensive project information including
+ * metadata, assigned employees, dates, approval status, and attached documents.
+ */
 
 function ProjectDetailsModal({ project, priorities, employees, onClose }: ProjectDetailsModalProps) {
   const priority = priorities.find(p => p.priorityID === project.priorityID);

@@ -17,6 +17,18 @@ interface ManageProjectProps {
   onDeleteProject: (projectId: string) => void;
 }
 
+/**
+ * MANAGE PROJECT COMPONENT (Employee View)
+ * Main interface for employees to view and manage their assigned projects.
+ * Features include:
+ * - Display of active projects (excludes historical/completed+approved)
+ * - Filtering by due date range, priority, and search term
+ * - Real-time clock showing last update time
+ * - Export functionality (Excel, PDF, Word)
+ * - Project detail modal for viewing/updating individual projects
+ * - Visual indicators for project status and pending admin approval
+ */
+
 export function ManageProject({
   projects,
   onNavigateToNewProject,
@@ -34,7 +46,7 @@ export function ManageProject({
   const [showFilters, setShowFilters] = useState(false);
   const [currentDateTime, setCurrentDateTime] = useState(new Date());
 
-  // Update time every second
+  // Update time every second for live clock display
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentDateTime(new Date());
@@ -93,7 +105,7 @@ export function ManageProject({
     return true;
   });
 
-  // Apply filters
+  // Apply filters to active projects
   const filteredProjects = activeProjects.filter((project) => {
     // Date range filter
     if (filters.dueDateFrom || filters.dueDateTo) {

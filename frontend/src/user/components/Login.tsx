@@ -13,6 +13,18 @@ interface LoginProps {
   }) => void;
 }
 
+/**
+ * LOGIN / SIGNUP COMPONENT
+ * Authentication gateway for both admin and employee users.
+ * Features include:
+ * - Toggle between Sign In and Sign Up modes
+ * - Form validation for both modes (email format, password length, match confirmation)
+ * - Password visibility toggle
+ * - API integration with backend for authentication
+ * - Handles forced password change flow for users with temporary passwords
+ * - Loading states and error message display
+ */
+
 export function Login({ onLogin, onSignUp }: LoginProps) {
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState('');

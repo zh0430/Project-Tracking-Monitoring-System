@@ -9,11 +9,22 @@ interface TaskListProps {
   onDeleteTask: (taskId: string) => void;
 }
 
+/**
+ * TASK LIST COMPONENT
+ * Main task management interface displaying tasks in a Kanban board layout
+ * with three columns (To Do, In Progress, Completed). Features include:
+ * - Search functionality across title, description, and assignee
+ * - Status and priority filters
+ * - Real-time task filtering and organization
+ * - Integration with TaskCard component for individual task management
+ */
+
 export function TaskList({ tasks, onUpdateTask, onDeleteTask }: TaskListProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | Task['status']>('all');
   const [priorityFilter, setPriorityFilter] = useState<'all' | Task['priority']>('all');
 
+  // Apply search and filter criteria to tasks
   const filteredTasks = tasks.filter(task => {
     const matchesSearch = task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          task.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -24,6 +35,7 @@ export function TaskList({ tasks, onUpdateTask, onDeleteTask }: TaskListProps) {
     return matchesSearch && matchesStatus && matchesPriority;
   });
 
+  // Group filtered tasks by status for Kanban columns
   const todoTasks = filteredTasks.filter(t => t.status === 'todo');
   const inProgressTasks = filteredTasks.filter(t => t.status === 'in-progress');
   const completedTasks = filteredTasks.filter(t => t.status === 'completed');
@@ -70,7 +82,7 @@ export function TaskList({ tasks, onUpdateTask, onDeleteTask }: TaskListProps) {
         </div>
       </div>
 
-      {/* Task Columns */}
+      {/* Task Columns - Kanban Board Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* To Do Column */}
         <div>

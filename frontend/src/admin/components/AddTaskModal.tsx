@@ -7,6 +7,13 @@ interface AddTaskModalProps {
   onAdd: (task: Omit<Task, 'id' | 'createdAt'>) => void;
 }
 
+/**
+ * ADD TASK MODAL COMPONENT
+ * Modal form for creating new tasks with fields for title, description,
+ * status, priority, assignee, due date, and estimated hours.
+ * Includes form validation and submission handling.
+ */
+
 export function AddTaskModal({ onClose, onAdd }: AddTaskModalProps) {
   const [formData, setFormData] = useState({
     title: '',

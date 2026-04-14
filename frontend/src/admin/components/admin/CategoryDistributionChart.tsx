@@ -6,7 +6,14 @@ interface CategoryDistributionChartProps {
   categories: Category[];
 }
 
+/**
+ * CATEGORY DISTRIBUTION CHART COMPONENT
+ * Visualizes task distribution across different work categories using a bar chart.
+ * Calculates task counts per category and displays the data using Recharts library.
+ */
+
 export function CategoryDistributionChart({ tasks, categories }: CategoryDistributionChartProps) {
+  // Transform category data into chart-compatible format with task counts
   const categoryData = categories.map(category => ({
     name: category.categoryName,
     count: tasks.filter(t => t.categoryID === category.categoryID).length,

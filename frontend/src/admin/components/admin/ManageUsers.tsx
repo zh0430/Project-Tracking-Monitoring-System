@@ -20,6 +20,15 @@ interface ManageUsersProps {
   adminId: string;
 }
 
+/**
+ * MANAGE USERS COMPONENT
+ * Administrative interface for managing employee accounts including:
+ * - Viewing all employees with their project assignments
+ * - Assigning new projects/tasks to employees
+ * - Resetting user passwords (generates temporary password)
+ * - Exporting user data to Excel, PDF, or Word formats
+ */
+
 export function ManageUsers({ 
   employees, 
   roles, 
@@ -57,6 +66,7 @@ export function ManageUsers({
     setSelectedEmployeeId(null);
   };
 
+  // Reset user password via admin API and display temporary password
   const handleResetPassword = async (userId: string) => {
     if (!window.confirm("Reset password for this user?")) return;
 
@@ -88,6 +98,7 @@ export function ManageUsers({
     }
   };
 
+  // Export user data to selected format (Excel, PDF, Word)
   const handleExport = (type: "excel" | "pdf" | "word") => {
     const data = sortedEmployees.map(employee => {
       const employeeProjects = projects.filter(p => {
@@ -173,6 +184,7 @@ export function ManageUsers({
         </div>
       </div>
 
+      {/* Temporary Password Display */}
       {tempPassword && (
         <div className="bg-yellow-50 border border-yellow-300 rounded-lg p-4">
           <p className="text-yellow-800 font-medium">
@@ -194,6 +206,7 @@ export function ManageUsers({
         </div>
       )}
 
+      {/* Users Table */}
       <div className="bg-white rounded-lg border border-gray-300 overflow-hidden">
         <table className="w-full">
           <thead className="bg-gray-100 border-b border-gray-300">
@@ -207,6 +220,7 @@ export function ManageUsers({
           </thead>
           <tbody className="divide-y divide-gray-300">
             {sortedEmployees.map(employee => {
+              // Calculate active project count (excluding historical completed & approved)
               const employeeProjects = projects.filter(p => {
                 // match assigned users
                 const isAssigned = (p.assignedToUserIDs || []).includes(employee.userID);
@@ -247,6 +261,7 @@ export function ManageUsers({
                       <Plus className="w-4 h-4" />
                     </button>
 
+                    {/* Prevent admin from resetting their own password */}
                     {employee.userID !== adminId && (
                       <button
                         onClick={() => handleResetPassword(employee.userID)}

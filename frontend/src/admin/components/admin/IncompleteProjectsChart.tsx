@@ -15,12 +15,20 @@ interface IncompleteProjectsChartProps {
   statuses: Status[];
 }
 
+/**
+ * INCOMPLETE PROJECTS CHART COMPONENT
+ * Visualizes workload distribution by displaying the number of incomplete
+ * projects assigned to each employee using a bar chart.
+ * Helps identify employees with high pending workload.
+ */
+
 export function IncompleteProjectsChart({
   projects,
   employees,
   statuses,
 }: IncompleteProjectsChartProps) {
 
+  // Calculate incomplete project count per employee
   const workloadData = employees.map(employee => {
     const count = projects.filter(p => {
       const isAssigned = (p.assignedToUserIDs || []).includes(employee.userID);
@@ -30,7 +38,7 @@ export function IncompleteProjectsChart({
     }).length;
 
     return {
-      name: employee.name.split(' ')[0],
+      name: employee.name.split(' ')[0], // Use first name only for cleaner display
       value: count,
     };
   });

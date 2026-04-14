@@ -7,6 +7,12 @@ interface AdminSettingsProps {
   onUpdate: (admin: Admin) => Promise<void>;
 }
 
+/**
+ * ADMIN SETTINGS COMPONENT
+ * Manages admin profile information including personal details, contact information,
+ * and profile picture. Supports edit mode with form validation and API integration.
+ */
+
 export function AdminSettings({ admin, onUpdate }: AdminSettingsProps) {
   const [formData, setFormData] = useState<Admin>({ ...admin });
   const [isEditing, setIsEditing] = useState(false);

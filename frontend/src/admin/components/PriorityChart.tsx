@@ -5,9 +5,18 @@ interface PriorityChartProps {
   tasks: Task[];
 }
 
+/**
+ * PRIORITY CHART COMPONENT
+ * Visualizes the distribution of active (non-completed) tasks by priority level
+ * using a pie chart with color-coded segments (Red for High, Amber for Medium, Green for Low).
+ * Only includes active tasks to focus on current workload.
+ */
+
 export function PriorityChart({ tasks }: PriorityChartProps) {
+  // Filter to active tasks only (excluding completed)
   const activeTasks = tasks.filter(t => t.status !== 'completed');
   
+  // Count tasks by priority level
   const priorityCounts = {
     high: activeTasks.filter(t => t.priority === 'high').length,
     medium: activeTasks.filter(t => t.priority === 'medium').length,

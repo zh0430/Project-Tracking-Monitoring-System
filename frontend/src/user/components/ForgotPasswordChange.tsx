@@ -1,7 +1,17 @@
-
 import { useState } from "react";
 import { Lock, Eye, EyeOff, AlertTriangle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+
+/**
+ * FORGOT PASSWORD CHANGE COMPONENT
+ * Handles temporary password change flow when admin has reset a user's password.
+ * Features include:
+ * - Password visibility toggle for current password field
+ * - Password validation (minimum 8 characters, match confirmation)
+ * - API integration for password change
+ * - Automatic logout and redirect to login after successful change
+ * - Error and success message display
+ */
 
 export function ForgotPasswordChange() {
   const navigate = useNavigate();
@@ -60,6 +70,7 @@ export function ForgotPasswordChange() {
 
       setSuccess("Password updated successfully. Redirecting to login...");
 
+      // Clear session and redirect to login after successful password change
       setTimeout(() => {
         localStorage.removeItem("token");
         localStorage.removeItem("user");
@@ -78,6 +89,7 @@ export function ForgotPasswordChange() {
           <h2 className="text-gray-900">Change Temporary Password</h2>
         </div>
 
+        {/* Warning Banner */}
         <div className="bg-yellow-50 border border-yellow-300 p-3 rounded flex gap-2">
           <AlertTriangle className="text-yellow-600 w-5 h-5 mt-0.5" />
           <p className="text-yellow-800 text-sm">

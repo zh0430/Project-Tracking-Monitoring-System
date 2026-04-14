@@ -6,12 +6,18 @@ interface CompletionOverTimeChartProps {
   statuses: Status[];
 }
 
+/**
+ * COMPLETION OVER TIME CHART COMPONENT
+ * Displays task completion trends using a dual-line chart showing both daily completions
+ * and cumulative total over time. Helps visualize productivity patterns and progress.
+ */
+
 export function CompletionOverTimeChart({ tasks, statuses }: CompletionOverTimeChartProps) {
-  // Get completed tasks
+  // Filter for completed tasks with completion dates
   const completedStatusId = statuses.find(s => s.statusName === 'Completed')?.statusID;
   const completedTasks = tasks.filter(t => t.statusID === completedStatusId && t.completedDate);
 
-  // Group by completion date
+  // Group completed tasks by their completion date
   const completionByDate = completedTasks.reduce((acc, task) => {
     const date = task.completedDate!;
     if (!acc[date]) {
@@ -21,7 +27,7 @@ export function CompletionOverTimeChart({ tasks, statuses }: CompletionOverTimeC
     return acc;
   }, {} as Record<string, number>);
 
-  // Convert to array and sort by date
+  // Convert grouped data to array format and sort chronologically
   const chartData = Object.entries(completionByDate)
     .map(([date, count]) => ({
       date,
@@ -29,7 +35,7 @@ export function CompletionOverTimeChart({ tasks, statuses }: CompletionOverTimeC
     }))
     .sort((a, b) => a.date.localeCompare(b.date));
 
-  // Calculate cumulative
+  // Calculate cumulative total for running sum line
   let cumulative = 0;
   const chartDataWithCumulative = chartData.map(item => {
     cumulative += item.completed;

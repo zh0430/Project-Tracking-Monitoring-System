@@ -8,6 +8,18 @@ interface GlobalDashboardProps {
   user: User;
 }
 
+/**
+ * GLOBAL DASHBOARD COMPONENT (Employee View)
+ * Main dashboard for regular employees to view their projects and workload.
+ * Features include:
+ * - Welcome greeting based on time of day
+ * - Statistics cards for total, active, completed, and high priority projects
+ * - Pie chart for project distribution by status
+ * - Bar chart for project distribution by priority
+ * - Paginated list of active projects with status and priority badges
+ * - Excludes historical projects (completed + approved)
+ */
+
 export function GlobalDashboard({ projects, user }: GlobalDashboardProps) {
   // Use safe projects array
   const safeProjects = projects ?? [];

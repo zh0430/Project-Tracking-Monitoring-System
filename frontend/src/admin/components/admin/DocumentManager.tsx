@@ -12,6 +12,13 @@ interface DocumentManagerProps {
   projectId?: string | number; // Added projectId for API calls
 }
 
+/**
+ * DOCUMENT MANAGER COMPONENT
+ * Handles file management for projects including uploading, downloading,
+ * and deleting documents. Integrates with backend API for file operations
+ * and supports file size validation (max 5MB).
+ */
+
 export function DocumentManager({ 
   documents, 
   onUpload, 
@@ -23,6 +30,7 @@ export function DocumentManager({
 }: DocumentManagerProps) {
   const [uploading, setUploading] = useState(false);
 
+  // Handle file upload with size validation and API integration
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -74,6 +82,7 @@ export function DocumentManager({
     }
   };
 
+  // Trigger file download by creating temporary anchor element
   const handleDownload = (doc: any) => {
     if (!doc.fileData) {
       alert("File not available");
@@ -88,6 +97,7 @@ export function DocumentManager({
     document.body.removeChild(link);
   };
 
+  // Format file size from bytes to human-readable format
   const formatFileSize = (bytes?: number) => {
     if (!bytes) return "—";
 
@@ -116,6 +126,7 @@ export function DocumentManager({
         )}
       </div>
 
+      {/* Document List Display */}
       {documents.length === 0 ? (
         <div className="p-4 bg-gray-50 rounded-lg border border-gray-300 text-center text-gray-500">
           No documents uploaded

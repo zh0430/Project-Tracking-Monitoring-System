@@ -5,6 +5,12 @@ const authenticate = require("../middleware/auth.middleware");
 const authorizeAdmin = require("../middleware/admin.middleware");
 const { resetUserPassword } = require("../controllers/admin.controller");
 
+/**
+ * ADMIN ROUTES
+ * All routes in this file require authentication and admin authorization
+ * Provides administrative functionality for managing users, tasks, projects, and system data
+ */
+
 // Get current admin profile
 router.get(
   "/me",
