@@ -7,7 +7,7 @@ import {
   exportEmployeeSummaryExcel, 
   exportEmployeeSummaryPDF, 
   exportEmployeeSummaryWord 
-} from '../../../shared/utils/userexport';
+} from '../../shared/utils/userexport';
 
 interface EmployeeSummaryProps {
   employees: Employee[];

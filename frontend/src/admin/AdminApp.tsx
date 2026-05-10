@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
-import { GlobalDashboard } from './components/admin/GlobalDashboard';
-import { ManageUsers } from './components/admin/ManageUsers';
-import { EmployeeSummary } from './components/admin/EmployeeSummary';
-import { UpdateStatusPriority } from './components/admin/UpdateProject';
-import { AdminSettings } from './components/admin/AdminSettings';
-import { TeamGanttChart } from './components/admin/TeamGanttChart';
-import { Sidebar } from './components/admin/Sidebar';
-import { AdminHeader } from "./components/admin/AdminHeader";
+import { GlobalDashboard } from './components/GlobalDashboard';
+import { ManageUsers } from './components/ManageUsers';
+import { EmployeeSummary } from './components/EmployeeSummary';
+import { UpdateStatusPriority } from './components/UpdateProject';
+import { AdminSettings } from './components/AdminSettings';
+import { TeamGanttChart } from './components/TeamGanttChart';
+import { Sidebar } from './components/Sidebar';
+import { AdminHeader } from "./components/AdminHeader";
 import { Routes, Route, Navigate, useNavigate, useParams } from "react-router-dom";
 
 // Type definitions for the entire application

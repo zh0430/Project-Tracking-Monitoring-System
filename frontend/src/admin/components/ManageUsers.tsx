@@ -6,7 +6,7 @@ import {
   exportUsersExcel,
   exportUsersPDF,
   exportUsersWord
-} from '../../../shared/utils/userExport';
+} from '../../shared/utils/userExport';
 
 interface ManageUsersProps {
   employees: Employee[];

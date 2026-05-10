@@ -6,7 +6,7 @@ import {
   exportGanttPDF,
   exportGanttWord,
   captureElementImage
-} from '../../../shared/utils/userexport';
+} from '../../shared/utils/userexport';
 
 interface TeamGanttChartProps {
   projects: Project[];
