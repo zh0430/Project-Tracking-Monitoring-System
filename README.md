@@ -2,7 +2,6 @@
 
 A full-stack web application designed to help teams manage, monitor, and track project progress efficiently. This system provides separate admin and user interfaces for managing projects, assigning tasks, tracking completion status, and visualizing project performance through dashboards and charts.
 
----
 
 ## Features
 
@@ -195,14 +194,6 @@ npm start
 * Advanced analytics dashboard
 * Role-based permissions
 * Cloud deployment support
-
----
-
-## Author
-
-Developed by:
-
-**Ain / zh0430**
 
 ---
 
